@@ -206,7 +206,7 @@ kbd { font-family: var(--f-mono); font-size: .76rem; border: 1px solid var(--lin
 
 <header class="top">
   <div class="top-in">
-    <div class="brand">作業系統復習站<small>OS CONCEPTS 10e · CH 1–4</small></div>
+    <div class="brand">作業系統復習站<small>OS CONCEPTS 10e · CH 1–5</small></div>
     <nav class="tabs" role="tablist" aria-label="主要功能">
       <button class="tab" role="tab" data-view="home" id="tab-home">總覽</button>
       <button class="tab" role="tab" data-view="notes" id="tab-notes">筆記</button>
@@ -221,7 +221,7 @@ kbd { font-family: var(--f-mono); font-size: .76rem; border: 1px solid var(--lin
 
   <!-- 總覽 -->
   <section id="v-home" data-view="home">
-    <h1 class="view-title">四章的進度</h1>
+    <h1 class="view-title">各章進度</h1>
     <p class="lede">先讀筆記，再用單字卡記名詞、用測驗檢查觀念。進度只存在這台裝置的瀏覽器裡。</p>
     <div class="ch-list" id="ch-list"></div>
     <div class="note-box">
@@ -7921,6 +7921,2670 @@ void *runner(void *param) {
 <hr>
 
 </article>
+<article class="note" data-ch="5" hidden>
+<h1>作業系統 Chapter 5：CPU Scheduling（CPU 排程）筆記</h1>
+<blockquote>
+<p><strong>教材</strong>：<em>Operating System Concepts</em>, 10th ed.（Silberschatz, Galvin, Gagne）
+<strong>投影片</strong>：Mei-Ling Chiang 教授，暨南大學資管系（2026/10/20，共 123 頁）
+<strong>筆記說明</strong>：</p>
+<ul>
+<li>英文專有名詞第一次出現時以「<strong>English（中文）</strong>」標示，文末有完整詞彙表。</li>
+<li>標示「<span class="tg tg-s">投影片例子</span>」者出自投影片；標示「<span class="tg tg-x">補充例子</span>」者是為了幫助理解另外加的比喻或說明，不在投影片內。</li>
+<li>標示「<span class="tg tg-w">留意</span>」者是投影片中疑似筆誤或需要留意的地方。</li>
+<li>時間單位若沒有特別說明，都是<strong>毫秒（ms）</strong>。</li>
+</ul>
+</blockquote>
+<hr>
+<h2 id="c5-s1">0. 本章目標</h2>
+<ul>
+<li>介紹 <strong>process scheduling（行程排程）</strong>，它是 multiprogrammed OS 的基礎。</li>
+<li>描述各種 <strong>CPU-scheduling algorithm（CPU 排程演算法）</strong>。</li>
+<li>討論為特定系統挑選排程演算法時的<strong>評估準則（evaluation criteria）</strong>。</li>
+<li>檢視幾個 OS 實際使用的排程演算法。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：Ch3 講過 process 在 ready queue 裡等 CPU，也講過 CPU scheduler 會「從 ready queue 選一個」。這一章回答的就是：<strong>要選哪一個？怎麼選才好？</strong></p>
+</blockquote>
+<hr>
+<h2 id="c5-s2">5.1 基本概念 (Basic Concepts)</h2>
+<ul>
+<li>Multiprogramming 的目的是取得<strong>最大的 CPU 使用率</strong>。</li>
+<li>幾乎所有電腦資源在使用前都要經過排程。</li>
+<li><strong>CPU scheduling 是 OS 設計的核心</strong>。</li>
+</ul>
+<h3>5.1.1 CPU–I/O Burst Cycle（CPU–I/O 爆發週期）</h3>
+<p>Process 的執行是由 <strong>CPU execution（CPU 執行）</strong> 與 <strong>I/O wait（I/O 等待）</strong> 交替組成的<strong>循環</strong>（Fig. 5.1）。</p>
+<pre><code>   load store
+   add store          ┐
+   read from file     ┘ CPU burst
+   ── wait for I/O ──   I/O burst
+   store increment    ┐
+   index              │ CPU burst
+   write to file      ┘
+   ── wait for I/O ──   I/O burst
+   load store
+   add store          ┐ CPU burst
+   read from file     ┘
+   ── wait for I/O ──   I/O burst
+          ⋮
+</code></pre>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>名詞</th>
+<th>中文</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>CPU burst</strong></td>
+<td>CPU 爆發</td>
+<td>一段連續使用 CPU 的時間</td>
+</tr>
+<tr>
+<td><strong>I/O burst</strong></td>
+<td>I/O 爆發</td>
+<td>一段等待 I/O 完成的時間</td>
+</tr>
+</tbody></table></div>
+<p><strong>CPU burst 的分布（Fig. 5.2）</strong>：橫軸是 burst 長度（毫秒），縱軸是出現頻率。曲線顯示<strong>大量的短 burst</strong>、<strong>少量的長 burst</strong>。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>類型</th>
+<th>中文</th>
+<th>特徵</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>I/O-bound program</strong></td>
+<td>I/O 密集型程式</td>
+<td>有<strong>很多短的</strong> CPU burst</td>
+</tr>
+<tr>
+<td><strong>CPU-bound program</strong></td>
+<td>CPU 密集型程式</td>
+<td>可能有<strong>少數幾個長的</strong> CPU burst</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>：文書編輯器是 I/O-bound——大部分時間在等你按鍵，按一下只需要極短的 CPU 時間處理。影片轉檔是 CPU-bound——一直在算，很少等 I/O。</p>
+</blockquote>
+<h3>5.1.2 CPU Scheduler（CPU 排程器）</h3>
+<ul>
+<li>每當 CPU <strong>閒置（idle）</strong>，OS 必須從 <strong>ready queue</strong> 中<strong>選出</strong>一個 process 來執行。</li>
+<li>這個選擇工作由 <strong>CPU scheduler</strong> 執行。</li>
+<li>Ready queue 可以用 <strong>FIFO queue</strong>、<strong>priority queue（優先權佇列）</strong>、<strong>tree（樹）</strong> 或 <strong>unordered linked list（無序鏈結串列）</strong> 實作。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：Ready queue 不一定是「先進先出」的佇列。它裡面放的是各 process 的 PCB，用什麼資料結構、怎麼挑，取決於排程演算法。</p>
+</blockquote>
+<h3>5.1.3 Preemptive &amp; Nonpreemptive Scheduling（可搶占與不可搶占排程）<span class="tg tg-k">重點</span></h3>
+<p>CPU 排程決策可能在 process 發生下列情況時進行：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>編號</th>
+<th>狀態轉換</th>
+<th>對應 Ch3 狀態圖</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>(0)</strong></td>
+<td>new → ready</td>
+<td>admitted</td>
+</tr>
+<tr>
+<td><strong>(1)</strong></td>
+<td><strong>running → waiting</strong></td>
+<td>I/O or event wait</td>
+</tr>
+<tr>
+<td><strong>(2)</strong></td>
+<td>running → ready</td>
+<td>interrupt</td>
+</tr>
+<tr>
+<td><strong>(3)</strong></td>
+<td>waiting → ready</td>
+<td>I/O or event completion</td>
+</tr>
+<tr>
+<td><strong>(4)</strong></td>
+<td><strong>terminates</strong></td>
+<td>exit</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>如果只在 <strong>(1) 與 (4)</strong> 這兩種情況才排程，稱為 <strong>nonpreemptive（不可搶占）</strong> 或 <strong>cooperative（合作式）</strong>。</li>
+<li>其他情況也會排程，就是 <strong>preemptive（可搶占）</strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：在 process state diagram 上標出排程點——preemptive 是 (0, 1, 2, 3, 4) 全部；nonpreemptive 只有圈起來的 (1) 和 (4)。</p>
+<p>為什麼 (1) 和 (4) 一定要排程？因為這兩種情況下目前的 process <strong>自己放棄了 CPU</strong>（去等 I/O 或結束了），CPU 空出來，非選下一個不可。其他情況是「目前的 process 還能跑，要不要把它換掉」，只有 preemptive 才會這樣做。</p>
+</blockquote>
+<h4>Nonpreemptive Scheduling（不可搶占排程）</h4>
+<ul>
+<li>CPU 一旦分配給某個 process，該 process 就一直持有 CPU，直到它<strong>終止</strong>或<strong>切換到 waiting 狀態</strong>才釋放。</li>
+<li><strong>幾乎所有現代 OS 都使用 preemptive 排程演算法</strong>：Windows、macOS、Linux、UNIX…</li>
+</ul>
+<h4>Preemptive Scheduling（可搶占排程）的問題</h4>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>問題</th>
+<th>說明</th>
+<th>處理方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Race condition（競爭條件）</strong></td>
+<td>存取共享資料時，一個 process 改到一半被搶走，另一個 process 讀到不一致的資料</td>
+<td>需要協調共享資料存取的機制（Chapter 6）</td>
+</tr>
+<tr>
+<td><strong>影響 kernel 設計：在 kernel mode 被搶占</strong></td>
+<td>Process 執行 system call 期間被搶占，kernel 資料結構可能不一致</td>
+<td>Kernel 在處理 system call 期間<strong>不搶占</strong>該 process，確保 kernel 結構一致</td>
+</tr>
+<tr>
+<td><strong>影響 kernel 設計：重要 OS 活動中發生中斷</strong></td>
+<td>被中斷影響的程式碼必須防止同時被使用</td>
+<td>進入時<strong>關閉中斷</strong>（disable INTs），離開時<strong>重新開啟</strong>（reenable INTs）</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>（race condition）：兩個 process 共用一個計數器 <code>count = 5</code>。A 讀出 5，正要寫回 6 時被搶占；B 也讀出 5、寫回 6。A 回來後寫回 6。兩次加一，結果卻只多了 1。</p>
+</blockquote>
+<h3>5.1.4 Dispatcher（分派器）</h3>
+<p><strong>Dispatcher</strong>：把 CPU core 的控制權交給 CPU scheduler 所選出之 process 的<strong>模組</strong>。</p>
+<p><strong>Dispatcher 的工作</strong>：</p>
+<ol>
+<li><strong>Switching context</strong>——切換內容（context switch）</li>
+<li><strong>Switching to user mode</strong>——切換到 user mode</li>
+<li>跳到 user program 中<strong>適當的位置</strong>，讓程式繼續執行</li>
+</ol>
+<p><strong>Dispatch latency（分派延遲）</strong>：dispatcher <strong>停止一個 process 並開始執行另一個</strong>所花的時間。</p>
+<p><strong>Dispatcher 的角色（Fig. 5.3）</strong>：</p>
+<pre><code>   P0 executing
+        │                    ┐
+   save state into PCB0      │
+        │                    │ dispatch latency
+   restore state from PCB1   │
+        │                    ┘
+   P1 executing
+</code></pre>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>CPU scheduler</strong></th>
+<th><strong>Dispatcher</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>工作</td>
+<td><strong>決定</strong>下一個執行誰</td>
+<td><strong>執行</strong>這個決定（實際切換過去）</td>
+</tr>
+<tr>
+<td><span class="tg tg-x">補充</span>比喻</td>
+<td>教練決定換誰上場</td>
+<td>場邊工作人員把人換上去</td>
+</tr>
+</tbody></table></div>
+<p>Dispatcher 每次切換都會被呼叫，所以必須<strong>越快越好</strong>。</p>
+<hr>
+<h2 id="c5-s3">5.2 排程準則 (Scheduling Criteria)</h2>
+<p>用來比較 CPU 排程演算法的準則：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>準則</th>
+<th>中文</th>
+<th>定義</th>
+<th>目標</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>CPU utilization</strong></td>
+<td>CPU 使用率</td>
+<td>CPU 有多忙。例如 40%（輕負載）到 90%（重負載）</td>
+<td><strong>最大化</strong></td>
+</tr>
+<tr>
+<td><strong>Throughput</strong></td>
+<td>產能</td>
+<td><strong>單位時間內完成的 process 數</strong>。例如長 process 每小時 1 個；短交易每秒 10 個</td>
+<td><strong>最大化</strong></td>
+</tr>
+<tr>
+<td><strong>Turnaround time</strong></td>
+<td>回復時間／周轉時間</td>
+<td>執行一個 process 所需的時間，即從<strong>送出（submission）到完成（completion）</strong> 的間隔</td>
+<td><strong>最小化</strong></td>
+</tr>
+<tr>
+<td><strong>Waiting time</strong></td>
+<td>等待時間</td>
+<td>process 在 <strong>ready queue 中等待</strong>的總時間</td>
+<td><strong>最小化</strong></td>
+</tr>
+<tr>
+<td><strong>Response time</strong></td>
+<td>回應時間</td>
+<td>從送出請求到<strong>產生第一個回應</strong>的時間。指的是「開始回應」所需的時間，而不是輸出完整回應的時間</td>
+<td><strong>最小化</strong></td>
+</tr>
+</tbody></table></div>
+<p><strong>最佳化目標（Optimization Criteria）</strong>：</p>
+<ul>
+<li>Max CPU utilization、Max throughput</li>
+<li>Min turnaround time、Min waiting time、Min response time</li>
+<li>Min 最大回應時間（minimize the max response time）</li>
+<li>Min 回應時間的變異數（minimize the variance in the response time）</li>
+</ul>
+<p><strong>本章計算時的常用公式</strong><span class="tg tg-k">重點</span>（<span class="tg tg-x">補充</span>整理）：</p>
+<pre><code>Turnaround time = Completion time − Arrival time
+Waiting time    = Turnaround time − Burst time
+                = Completion time − Arrival time − Burst time
+</code></pre>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片</span> 投影片也寫了同樣的公式：<strong>Waiting time = completion time − arrival time − execution time</strong>。</p>
+<p><span class="tg tg-x">補充</span>：排程演算法其實<strong>不影響</strong>一個 process 執行或做 I/O 的時間長短，它只影響 process <strong>在 ready queue 裡等多久</strong>。所以本章最常用 <strong>average waiting time（平均等待時間）</strong> 來比較演算法。</p>
+</blockquote>
+<hr>
+<h2 id="c5-s4">5.3 排程演算法 (Scheduling Algorithms)</h2>
+<p>為了方便說明，本章的例子每個 process <strong>只考慮一個 CPU burst</strong>（單位毫秒），並以<strong>平均等待時間</strong>作為比較標準。</p>
+<h3>各演算法是否可搶占<span class="tg tg-k">重點</span></h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>演算法</th>
+<th>Preemptive</th>
+<th>Non-preemptive</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>FCFS</strong></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td><strong>SJF</strong></td>
+<td>✓（稱為 <strong>SRTF</strong>）</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><strong>Priority</strong></td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><strong>RR</strong></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Multilevel queue</strong></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Multilevel feedback queue</strong></td>
+<td>✓</td>
+<td></td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-w">
+<p><span class="tg tg-w">留意</span> 投影片第 18 頁的目錄把 5.3.3 寫成 Priority、5.3.4 寫成 Round-Robin，但後面內頁的標題（以及 10th edition 課本）是 <strong>5.3.3 Round-Robin、5.3.4 Priority</strong>。本筆記依內頁順序。</p>
+</blockquote>
+<h3>5.3.1 First-Come, First-Served（FCFS，先到先服務）</h3>
+<p><strong>誰先到 ready queue，誰就先用 CPU</strong>。用 FIFO queue 就能實作。</p>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 1：三個 process 依 P1、P2、P3 的順序到達（皆在時間 0）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>24</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>3</td>
+</tr>
+</tbody></table></div>
+<pre><code>Gantt chart:
+|            P1            | P2 | P3 |
+0                         24   27   30
+</code></pre>
+<ul>
+<li>Waiting time：P1 = 0，P2 = 24，P3 = 27</li>
+<li><strong>平均等待時間 = (0 + 24 + 27) / 3 = 17</strong></li>
+</ul>
+<p><span class="tg tg-s">投影片例子</span> 2：同樣三個 process，到達順序改成 P2、P3、P1</p>
+<pre><code>Gantt chart:
+| P2 | P3 |            P1            |
+0    3    6                         30
+</code></pre>
+<ul>
+<li>Waiting time：P1 = 6，P2 = 0，P3 = 3</li>
+<li><strong>平均等待時間 = (6 + 0 + 3) / 3 = 3</strong>——比上一種情況好很多</li>
+</ul>
+</blockquote>
+<p><strong>FCFS 的特性</strong>：</p>
+<ul>
+<li>平均等待時間通常<strong>不是最佳的</strong>，而且當各 process 的 CPU burst 長度差異很大時，<strong>變動也很大</strong>。</li>
+<li><strong>Nonpreemptive</strong>：對 time-sharing 系統來說很麻煩（一個 process 可能霸佔 CPU 很久）。</li>
+</ul>
+<p><strong>Convoy effect（護送效應）</strong><span class="tg tg-k">重點</span>：</p>
+<ul>
+<li>短的 process 排在長的 process 後面。</li>
+<li>所有其他 process 都在等那個大 process 離開 CPU。</li>
+<li>結果使 <strong>CPU 與裝置的使用率都降低</strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：假設有一個 CPU-bound process 和許多 I/O-bound process。</p>
+<ol>
+<li>CPU-bound process 佔著 CPU；I/O-bound process 都做完 I/O 回到 ready queue 排在它後面 → <strong>I/O 裝置閒置</strong>。</li>
+<li>CPU-bound process 終於去做 I/O；I/O-bound process 很快地用完各自短短的 CPU burst，又都去排 I/O，排在 CPU-bound process 後面 → <strong>CPU 閒置</strong>。</li>
+<li>如此反覆，CPU 和裝置輪流閒著。</li>
+</ol>
+<p><span class="tg tg-x">補充例子</span>：超市只有一個收銀台，前面的人推了滿滿一車，後面只買一瓶水的人全部卡住。</p>
+</blockquote>
+<h3>5.3.2 Shortest-Job-First（SJF，最短工作優先）</h3>
+<ul>
+<li>更精確的名稱是 <strong>shortest-next-CPU-burst algorithm（最短下一次 CPU burst 演算法）</strong>。</li>
+<li>每個 process 都關聯到它<strong>下一次 CPU burst 的長度</strong>；選擇<strong>下一次 CPU burst 最短</strong>的 process。<ul>
+<li>長度相同時，依 <strong>FCFS</strong> 順序。</li>
+</ul>
+</li>
+<li>看的是 process <strong>下一次</strong> CPU burst 的長度，<strong>不是</strong>它的總長度。</li>
+</ul>
+<p><strong>兩種版本</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Nonpreemptive SJF</strong></th>
+<th><strong>Preemptive SJF ＝ SRTF</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>規則</td>
+<td>CPU 一旦給了某個 process，在它完成這次 CPU burst 之前<strong>不能被搶占</strong></td>
+<td>新到達的 process 的 CPU burst 長度<strong>小於</strong>目前執行中 process 的<strong>剩餘時間</strong>，就搶占</td>
+</tr>
+<tr>
+<td>全名</td>
+<td>—</td>
+<td><strong>Shortest-Remaining-Time-First（最短剩餘時間優先）</strong></td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 1：Nonpreemptive SJF（全部在時間 0 到達）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>6</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>8</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>7</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>3</td>
+</tr>
+</tbody></table></div>
+<pre><code>| P4 |   P1   |    P3    |    P2    |
+0    3        9         16         24
+</code></pre>
+<p>平均等待時間 = (3 + 16 + 9 + 0) / 4 = <strong>7</strong></p>
+<p>（<span class="tg tg-x">補充</span>：同樣這四個 process 用 FCFS 的話，平均等待時間是 (0 + 6 + 14 + 21) / 4 = 10.25。）</p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 2：Nonpreemptive SJF，<strong>加入不同的到達時間</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Arrival Time</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>0</td>
+<td>7</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>2</td>
+<td>4</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>4</td>
+<td>1</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>5</td>
+<td>4</td>
+</tr>
+</tbody></table></div>
+<pre><code>|      P1      | P3 |   P2   |   P4   |
+0              7    8       12       16
+</code></pre>
+<ul>
+<li>時間 0 只有 P1，先執行；nonpreemptive，所以 P1 跑完整個 burst（到 7）。</li>
+<li>時間 7：P2（4）、P3（1）、P4（4）都到了，選最短的 P3。</li>
+<li>時間 8：P2 與 P4 一樣長（4），依 FCFS 選先到的 P2。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>等待時間</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>8 − 2 = 6</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>7 − 4 = 3</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>12 − 5 = 7</td>
+</tr>
+</tbody></table></div>
+<p>平均等待時間 = (0 + 6 + 3 + 7) / 4 = <strong>4</strong></p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 3：<strong>SRTF</strong>（preemptive SJF）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Arrival Time</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>0</td>
+<td>8</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>1</td>
+<td>4</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>2</td>
+<td>9</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>3</td>
+<td>5</td>
+</tr>
+</tbody></table></div>
+<pre><code>| P1 |   P2   |    P4    |      P1      |       P3       |
+0    1        5         10             17               26
+</code></pre>
+<ul>
+<li>時間 1：P2 到達（4）&lt; P1 剩下的 7 → <strong>搶占</strong>，換 P2。</li>
+<li>時間 5：P2 完成；剩 P1（7）、P3（9）、P4（5）→ 選 P4。</li>
+<li>時間 10：P4 完成；P1（7）&lt; P3（9）→ 選 P1。</li>
+</ul>
+<p>平均等待時間 = [(10 − 1) + (1 − 1) + (17 − 2) + (5 − 3)] / 4 = 26 / 4 = <strong>6.5 ms</strong></p>
+<p>（P1 從時間 1 停到 10 才繼續，所以等了 10 − 1 = 9。）</p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 4：<strong>Preemptive SJF</strong>，與例子 2 同一組資料</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Arrival Time</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>0</td>
+<td>7</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>2</td>
+<td>4</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>4</td>
+<td>1</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>5</td>
+<td>4</td>
+</tr>
+</tbody></table></div>
+<pre><code>|  P1  |  P2  | P3 |  P2  |    P4    |      P1      |
+0      2      4    5      7         11             16
+</code></pre>
+<ul>
+<li>時間 2：P2 到達（4）&lt; P1 剩下的 5 → 搶占。</li>
+<li>時間 4：P3 到達（1）&lt; P2 剩下的 2 → 搶占。</li>
+<li>時間 5：P3 完成；P2 剩 2、P4 為 4、P1 剩 5 → P2。</li>
+<li>時間 7：P2 完成；P4（4）&lt; P1（5）→ P4。</li>
+<li>時間 11：P4 完成 → P1 跑完。</li>
+</ul>
+<p>用公式 <strong>Waiting = Completion − Arrival − Burst</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Completion</th>
+<th>Arrival</th>
+<th>Burst</th>
+<th>Waiting</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>16</td>
+<td>0</td>
+<td>7</td>
+<td><strong>9</strong></td>
+</tr>
+<tr>
+<td>P2</td>
+<td>7</td>
+<td>2</td>
+<td>4</td>
+<td><strong>1</strong></td>
+</tr>
+<tr>
+<td>P3</td>
+<td>5</td>
+<td>4</td>
+<td>1</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>P4</td>
+<td>11</td>
+<td>5</td>
+<td>4</td>
+<td><strong>2</strong></td>
+</tr>
+</tbody></table></div>
+<p>平均等待時間 = (9 + 1 + 0 + 2) / 4 = <strong>3</strong>（比 nonpreemptive 版本的 4 更好）</p>
+</blockquote>
+<p><strong>SJF 的優缺點</strong>：</p>
+<ul>
+<li>SJF <strong>可證明是最佳的（provably optimal）</strong>：對一組給定的 process，它的<strong>平均等待時間最小</strong>。</li>
+<li>常用於 <strong>long-term scheduling（長期排程）</strong>。</li>
+<li><strong>無法直接用在 short-term scheduling（短期排程，即 CPU 排程）</strong>——因為無法事先知道下一次 CPU burst 有多長。</li>
+<li>只能<strong>預測（predict）</strong> 長度：選<strong>預測的 CPU burst 最短</strong>的 process，來近似 SJF。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：為什麼 SJF 最佳？把短的工作移到長的前面，短工作少等的時間比長工作多等的時間還多，所以總等待時間一定下降。</p>
+</blockquote>
+<h4>預測下一次 CPU burst 的長度<span class="tg tg-k">重點</span></h4>
+<p>用過去 CPU burst 實際長度的 <strong>exponential average（指數平均）</strong> 來預測：</p>
+<pre><code>τ(n+1) = α · t(n) + (1 − α) · τ(n)        0 ≤ α ≤ 1
+</code></pre>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>符號</th>
+<th>意義</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>t(n)</strong></td>
+<td>第 n 次 CPU burst 的<strong>實際</strong>長度</td>
+</tr>
+<tr>
+<td><strong>τ(n)</strong></td>
+<td>對第 n 次 CPU burst 的<strong>預測</strong>值（代表過去的歷史）</td>
+</tr>
+<tr>
+<td><strong>τ(n+1)</strong></td>
+<td>對下一次 CPU burst 的<strong>預測</strong>值</td>
+</tr>
+<tr>
+<td><strong>α</strong></td>
+<td>權重：決定最近一次實際值與過去歷史各佔多少</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：α = 1/2，τ0 = 10</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>i</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+<th>7</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>實際 CPU burst t(i)</td>
+<td>6</td>
+<td>4</td>
+<td>6</td>
+<td>4</td>
+<td>13</td>
+<td>13</td>
+<td>13</td>
+<td>…</td>
+</tr>
+<tr>
+<td>預測 τ(i)</td>
+<td>10</td>
+<td>8</td>
+<td>6</td>
+<td>6</td>
+<td>5</td>
+<td>9</td>
+<td>11</td>
+<td>12</td>
+</tr>
+</tbody></table></div>
+<p>計算過程：</p>
+<ul>
+<li>τ1 = ½ × 6 + ½ × 10 = <strong>8</strong></li>
+<li>τ2 = ½ × 4 + ½ × 8 = <strong>6</strong></li>
+<li>τ3 = ½ × 6 + ½ × 6 = <strong>6</strong></li>
+<li>τ4 = ½ × 4 + ½ × 6 = <strong>5</strong></li>
+<li>τ5 = ½ × 13 + ½ × 5 = <strong>9</strong></li>
+<li>τ6 = ½ × 13 + ½ × 9 = <strong>11</strong></li>
+<li>τ7 = ½ × 13 + ½ × 11 = <strong>12</strong></li>
+</ul>
+<p>實際值從 4 跳到 13 之後，預測值逐步追上去（5 → 9 → 11 → 12）。</p>
+</blockquote>
+<p><strong>α 的兩個極端</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>α</th>
+<th>公式</th>
+<th>意義</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>α = 0</strong></td>
+<td>τ(n+1) = τ(n)</td>
+<td><strong>最近的實際值不算數</strong>，預測永遠不變</td>
+</tr>
+<tr>
+<td><strong>α = 1</strong></td>
+<td>τ(n+1) = t(n)</td>
+<td><strong>只看最後一次實際 CPU burst</strong>，過去的歷史不算數</td>
+</tr>
+</tbody></table></div>
+<p><strong>展開公式</strong>：</p>
+<pre><code>τ(n+1) = α·t(n) + (1−α)·α·t(n−1) + … + (1−α)^j·α·t(n−j) + … + (1−α)^(n+1)·τ0
+</code></pre>
+<p>因為 α 和 (1 − α) 都 ≤ 1，<strong>越久以前的 burst 權重越小</strong>。</p>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>：像天氣預報結合「昨天的實際溫度」和「之前的預報」。α 越大，越相信最近發生的事。</p>
+</blockquote>
+<h3>5.3.3 Round-Robin（RR，輪流排程）</h3>
+<ul>
+<li><strong>專為 time-sharing 系統設計</strong>。</li>
+<li>每個 process 拿到一小段 CPU 時間，稱為 <strong>time quantum（時間配額）</strong> 或 <strong>time slice（時間片）</strong>，通常 <strong>10 到 100 毫秒</strong>。</li>
+<li>Time quantum <strong>到期（expired）</strong> 時，process 就被<strong>搶占</strong>。</li>
+<li>Ready queue 維持為 <strong>FIFO queue</strong>：<ul>
+<li>新 process 加到<strong>尾端（tail）</strong></li>
+<li>排程<strong>頭端（head）</strong> 的第一個 process 執行</li>
+<li>Timer 響時，執行中的 process 被搶占並加到尾端</li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 1：Time quantum = 4（全部在時間 0 到達）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>24</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>3</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>3</td>
+</tr>
+</tbody></table></div>
+<pre><code>| P1 | P2 | P3 | P1 | P1 | P1 | P1 | P1 |
+0    4    7   10   14   18   22   26   30
+</code></pre>
+<ul>
+<li>通常 RR 的平均 turnaround 比 SJF <strong>高</strong>，但<strong>回應比較好</strong>。</li>
+</ul>
+<p>（<span class="tg tg-x">補充</span>計算：等待時間 P1 = 30 − 24 = 6、P2 = 4、P3 = 7，平均 17 / 3 ≈ 5.67。和 FCFS 的 17 比，好很多。）</p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 2：Time quantum = 20（全部在時間 0 到達）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>53</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>17</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>68</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>24</td>
+</tr>
+</tbody></table></div>
+<pre><code>| P1 | P2 | P3 | P4 | P1 | P3 | P4 | P1 | P3 | P3 |
+0   20   37   57   77   97  117  121  134  154  162
+</code></pre>
+<ul>
+<li>P2 只要 17，第一輪就做完（20 → 37）。</li>
+<li>P4 第二輪只剩 4（117 → 121）。</li>
+</ul>
+<p>（<span class="tg tg-x">補充</span>計算：完成時間 P1 = 134、P2 = 37、P3 = 162、P4 = 121；等待時間 = 完成 − burst：P1 = 81、P2 = 20、P3 = 94、P4 = 97，平均 = 292 / 4 = 73。）</p>
+</blockquote>
+<p><strong>RR 的性質</strong>：</p>
+<ul>
+<li>若 ready queue 有 <strong>n</strong> 個 process，time quantum 為 <strong>q</strong>：<ul>
+<li>每個 process 每 <strong>n·q</strong> 個時間單位得到一段 q 的 CPU 時間，也就是每 q 個時間單位得到 <strong>1/n</strong> 的 CPU。</li>
+<li>每個 process <strong>最多等待 (n − 1) × q</strong> 個時間單位。</li>
+</ul>
+</li>
+<li><strong>RR 的效能取決於 q</strong>：<ul>
+<li><strong>q → ∞</strong>：RR 變成 <strong>FCFS</strong>。</li>
+<li><strong>q 越小</strong>：<strong>context switch 次數越多</strong>。</li>
+</ul>
+</li>
+<li>Time quantum 相對於 context-switch 時間<strong>必須夠大</strong>，但<strong>也不能太大</strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>較小的 time quantum 會增加 context switch</strong>（一個 process 需要 10 個時間單位）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Quantum</th>
+<th>Context switches</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>12</td>
+<td>0</td>
+</tr>
+<tr>
+<td>6</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>9</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>q 應該遠大於 context switch 的時間。</li>
+<li>q 通常 <strong>10 ms 到 100 ms</strong>，context switch <strong>&lt; 10 μs</strong>。</li>
+</ul>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>Average turnaround time 隨 time quantum 變化</strong>（P1 = 6、P2 = 3、P3 = 1、P4 = 7）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Time quantum</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+<th>7</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Avg turnaround（約）</td>
+<td>11.0</td>
+<td>11.5</td>
+<td>10.75</td>
+<td>11.5</td>
+<td>12.25</td>
+<td>10.5</td>
+<td>10.5</td>
+</tr>
+</tbody></table></div>
+<p>重點：turnaround time <strong>不一定</strong>隨 quantum 變大而改善。
+（<span class="tg tg-x">補充</span>：課本的經驗法則是約 <strong>80%</strong> 的 CPU burst 應該比 time quantum 短。以 q = 6 驗算：P1 0–6、P2 6–9、P3 9–10、P4 10–16、P4 16–17，turnaround 為 6、9、10、17，平均 42 / 4 = 10.5。）</p>
+</blockquote>
+<h3>5.3.4 Priority Scheduling（優先權排程）</h3>
+<ul>
+<li>每個 process 關聯一個 <strong>priority number（優先權數字，整數）</strong>。</li>
+<li>選擇<strong>優先權最高</strong>的 process。</li>
+<li>優先權相同時，依 <strong>FCFS</strong> 順序。</li>
+</ul>
+<p><strong>優先權的定義方式</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>類型</th>
+<th>中文</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>External priority</strong></td>
+<td>外部優先權</td>
+<td>由系統外部決定：重要性、政治因素…</td>
+</tr>
+<tr>
+<td><strong>Internal priority</strong></td>
+<td>內部優先權</td>
+<td>用可量測的數值計算：時間限制、記憶體需求、開啟檔案數…</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li><strong>SJF 其實是 priority 演算法的一種</strong>：優先權就是<strong>預測的下一次 CPU burst 時間</strong>；CPU burst 越長，優先權越低。</li>
+</ul>
+<p><strong>可搶占或不可搶占</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th>新到達的 process 優先權<strong>較高</strong>時</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Preemptive priority</strong></td>
+<td><strong>搶占</strong> CPU</td>
+</tr>
+<tr>
+<td><strong>Nonpreemptive priority</strong></td>
+<td>把新 process 放到 ready queue 的<strong>頭端</strong>（等目前的跑完）</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 1：Nonpreemptive priority（全部在時間 0 依 P1…P5 順序到達；<strong>數字越小優先權越高</strong>）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+<th>Priority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>10</td>
+<td>3</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>2</td>
+<td>4</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>1</td>
+<td>5</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>5</td>
+<td>2</td>
+</tr>
+</tbody></table></div>
+<pre><code>| P2 |   P5   |        P1         | P3 | P4 |
+0    1        6                  16   18   19
+</code></pre>
+<p>等待時間：P1 = 6、P2 = 0、P3 = 16、P4 = 18、P5 = 1
+平均等待時間 = 41 / 5 = <strong>8.2 ms</strong></p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 2：<strong>Priority ＋ Round-Robin</strong>（time quantum = 2 ms）
+規則：執行優先權最高的 process；<strong>優先權相同的用 RR 輪流</strong>。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+<th>Priority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>4</td>
+<td>3</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>5</td>
+<td>2</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>8</td>
+<td>2</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>7</td>
+<td>1</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>3</td>
+<td>3</td>
+</tr>
+</tbody></table></div>
+<pre><code>|    P4    | P2 | P3 | P2 | P3 | P2 |  P3  | P1 | P5 | P1 | P5 |
+0          7    9   11   13   15   16     20   22   24   26   27
+</code></pre>
+<ul>
+<li>P4 優先權最高（1），而且是同級唯一的一個，所以一路跑完（0–7）。</li>
+<li>P2、P3（優先權 2）用 RR 輪流；P2 在 16 做完後，P3 自己跑到 20。</li>
+<li>P1、P5（優先權 3）最後輪流。</li>
+</ul>
+<p>（<span class="tg tg-x">補充</span>計算：等待時間 P1 = 26 − 4 = 22、P2 = 16 − 5 = 11、P3 = 20 − 8 = 12、P4 = 0、P5 = 27 − 3 = 24，平均 69 / 5 = 13.8。）</p>
+</blockquote>
+<p><strong>主要問題：Indefinite blocking（無限期阻塞）＝ Starvation（飢餓）</strong><span class="tg tg-k">重點</span></p>
+<ul>
+<li>低優先權的 process <strong>可能永遠不會被執行</strong>。</li>
+<li>一個 ready 但一直等不到 CPU 的 process，可以視為被 block 住。</li>
+</ul>
+<p><strong>解法：Aging（老化）</strong></p>
+<ul>
+<li>對在系統中<strong>等待很久</strong>的 process，<strong>逐步提高</strong>它的優先權。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>：醫院急診依傷勢輕重（優先權）看診，扭到腳的人可能一直被更急的病人插隊（starvation）。Aging 就像規定「每等 30 分鐘就往前升一級」，最後一定輪得到。</p>
+</blockquote>
+<h3>5.3.5 Multilevel Queue Scheduling（多層佇列排程）</h3>
+<ul>
+<li>把 process <strong>分成不同群組</strong>，因為不同群組可能有不同的排程需求。<ul>
+<li>例如：<strong>foreground（前景，互動式）</strong> process 與 <strong>background（背景，批次）</strong> process。</li>
+</ul>
+</li>
+<li>把 ready queue <strong>分割成多個獨立的佇列</strong>：<ul>
+<li>Process <strong>永久（permanently）</strong> 被指派到某一個佇列。</li>
+<li><strong>每個佇列有自己的排程演算法</strong>，例如 foreground 用 RR、background 用 FCFS。</li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>每個優先權各有一個佇列（Fig. 5.7）</strong></p>
+<pre><code>priority = 0  : T0  T1  T2  T3  T4
+priority = 1  : T5  T6  T7
+priority = 2  : T8  T9  T10 T11
+     ⋮
+priority = n  : Tx  Ty  Tz
+</code></pre>
+</blockquote>
+<p><strong>佇列之間如何排程</strong>（兩種方式）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>方式</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Fixed-priority preemptive scheduling（固定優先權可搶占）</strong></td>
+<td>每個佇列對較低優先權的佇列有<strong>絕對優先權</strong>；較高優先權的佇列<strong>全部空了</strong>，較低的才能執行；有新的高優先權 process 進來，就搶占目前的。<strong>可能造成 starvation</strong></td>
+</tr>
+<tr>
+<td><strong>Time slice among the queues（佇列間分配時間片）</strong></td>
+<td>每個佇列分到一定比例的 CPU 時間，再分給佇列內的 process。例如 <strong>80%</strong> 給 foreground（RR）、<strong>20%</strong> 給 background（FCFS）</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：四個佇列，由高到低</p>
+<pre><code>最高優先權  ── real-time processes
+            ── system processes
+            ── interactive processes
+最低優先權  ── batch processes
+</code></pre>
+<p>採用 fixed-priority preemptive 時，batch 佇列中的 process 必須等上面三個佇列<strong>全部空了</strong>才能執行。</p>
+</blockquote>
+<h3>5.3.6 Multilevel Feedback Queue Scheduling（多層回饋佇列排程）<span class="tg tg-k">重點</span></h3>
+<ul>
+<li><strong>最通用（most general）</strong>、也<strong>最複雜</strong>的 CPU 排程演算法。</li>
+<li>Process <strong>可以在各佇列之間移動</strong>（沒有永久固定的優先權）。<ul>
+<li>依 CPU burst 的特性把 process 分開。</li>
+</ul>
+</li>
+<li>用 <strong>aging 防止 starvation</strong>：<ul>
+<li>用了<strong>太多 CPU 時間</strong> → 移到<strong>較低</strong>優先權的佇列。</li>
+<li>在佇列中<strong>等太久</strong> → 移到<strong>較高</strong>優先權的佇列。</li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：三個佇列</p>
+<pre><code> 新工作 ──► [ Q0：quantum = 8  ] ──► 8 ms 內做完就離開
+                   │ 沒做完
+                   ▼
+            [ Q1：quantum = 16 ] ──► 再給 16 ms 內做完就離開
+                   │ 還沒做完
+                   ▼
+            [ Q2：FCFS         ] ──► 做完離開
+</code></pre>
+<ul>
+<li>新工作進入 <strong>Q0</strong>（Q0 內以 FCFS 服務）。拿到 CPU 時得到 <strong>8 ms</strong>；8 ms 內沒做完就移到 <strong>Q1</strong>。</li>
+<li>在 Q1 同樣以 FCFS 服務，再得到 <strong>16 ms</strong>；還是沒做完就被搶占，移到 <strong>Q2</strong>。</li>
+<li>Q2 用 FCFS。</li>
+<li>效果：<strong>CPU burst ≤ 8 ms 的 process 得到最高優先權</strong>——它們很快拿到 CPU、做完 burst 就去做 I/O。</li>
+</ul>
+<p><span class="tg tg-x">補充</span>：只有 Q0 空了才會執行 Q1，Q0 和 Q1 都空了才會執行 Q2。所以短的、互動式的 process 自然留在上層，CPU-bound 的長工作沉到下層。</p>
+</blockquote>
+<p><strong>定義一個 multilevel feedback queue scheduler 的參數</strong>：</p>
+<ol>
+<li>佇列的<strong>數量</strong></li>
+<li>每個佇列的<strong>排程演算法</strong></li>
+<li>決定何時把 process <strong>升級（upgrade）</strong> 的方法</li>
+<li>決定何時把 process <strong>降級（demote）</strong> 的方法</li>
+<li>決定 process 需要服務時<strong>進入哪一個佇列</strong>的方法</li>
+</ol>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Multilevel Queue</strong></th>
+<th><strong>Multilevel Feedback Queue</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Process 能否換佇列</td>
+<td><strong>不能</strong>，永久指派</td>
+<td><strong>可以</strong>，依行為升降</td>
+</tr>
+<tr>
+<td>Starvation</td>
+<td>可能（fixed-priority 時）</td>
+<td>用 aging 防止</td>
+</tr>
+<tr>
+<td>彈性</td>
+<td>較低</td>
+<td><strong>最高</strong>，但最複雜</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2 id="c5-s5">5.4 執行緒排程 (Thread Scheduling)</h2>
+<ul>
+<li>在同時支援 user-level 與 kernel-level thread 的 OS 上，<strong>被 OS 排程的是 kernel-level thread</strong>。</li>
+<li>User-level thread 要在 CPU 上執行，最終必須對應到一個 kernel-level thread。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>PCS：Process-Contention Scope（行程競爭範圍）</strong></th>
+<th><strong>SCS：System-Contention Scope（系統競爭範圍）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>誰在排程</td>
+<td><strong>Thread library</strong> 把 user-level thread 排到可用的 <strong>LWP</strong> 上</td>
+<td><strong>Kernel</strong> 把 kernel thread 排到可用的 <strong>CPU</strong> 上</td>
+</tr>
+<tr>
+<td>競爭對象</td>
+<td>同一個 <strong>process</strong> 內的 thread 互相競爭</td>
+<td><strong>整個系統</strong>中所有 thread 互相競爭</td>
+</tr>
+<tr>
+<td>適用模型</td>
+<td>Many-to-one、many-to-many</td>
+<td>所有模型；<strong>one-to-one 只用 SCS</strong></td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>採用 <strong>one-to-one</strong> 模型的系統（<strong>Windows、Linux、Solaris</strong>）<strong>只用 SCS</strong> 排程 thread。</li>
+<li><strong>POSIX Pthread API</strong> 允許在建立 thread 時指定 PCS 或 SCS：<ul>
+<li><strong><code>PTHREAD_SCOPE_PROCESS</code></strong>：用 PCS 排程</li>
+<li><strong><code>PTHREAD_SCOPE_SYSTEM</code></strong>：用 SCS 排程</li>
+</ul>
+</li>
+<li>可能受 OS 限制：<strong>Linux 與 Mac OS X 只允許 <code>PTHREAD_SCOPE_SYSTEM</code></strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>（Fig. 5.10）：Pthread scheduling API</p>
+<pre><code class="language-c">#include &lt;pthread.h&gt;
+#include &lt;stdio.h&gt;
+#define NUM_THREADS 5
+
+int main(int argc, char *argv[])
+{
+    int i, scope;
+    pthread_t tid[NUM_THREADS];
+    pthread_attr_t attr;
+
+    /* get the default attributes */
+    pthread_attr_init(&amp;attr);
+
+    /* first inquire on the current scope */
+    if (pthread_attr_getscope(&amp;attr, &amp;scope) != 0)
+        fprintf(stderr, &quot;Unable to get scheduling scope\n&quot;);
+    else {
+        if (scope == PTHREAD_SCOPE_PROCESS)
+            printf(&quot;PTHREAD_SCOPE_PROCESS&quot;);
+        else if (scope == PTHREAD_SCOPE_SYSTEM)
+            printf(&quot;PTHREAD_SCOPE_SYSTEM&quot;);
+        else
+            fprintf(stderr, &quot;Illegal scope value.\n&quot;);
+    }
+
+    /* set the scheduling algorithm to PROCESS or SYSTEM */
+    pthread_attr_setscope(&amp;attr, PTHREAD_SCOPE_SYSTEM);
+
+    /* create the threads */
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_create(&amp;tid[i], &amp;attr, runner, NULL);
+
+    /* now join on each thread */
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_join(tid[i], NULL);
+}
+
+/* Each thread will begin control in this function */
+void *runner(void *param)
+{
+    printf(&quot;I am a thread\n&quot;);
+    pthread_exit(0);
+}
+</code></pre>
+<p>程式先用 <code>pthread_attr_getscope()</code> 查詢目前的競爭範圍，再用 <code>pthread_attr_setscope()</code> 設成 SCS，然後建立 5 個 thread。
+<span class="tg tg-w">留意</span> 投影片程式中用到的 <code>scope</code> 變數沒有宣告，<code>NUM THREADS</code>、<code>pthread t</code>、<code>pthread attr t</code> 也少了底線，上面已補正（<code>int i, scope;</code>、<code>NUM_THREADS</code>、<code>pthread_t</code>、<code>pthread_attr_t</code>）。實際編譯時 <code>runner</code> 也需要先宣告原型。</p>
+</blockquote>
+<hr>
+<h2 id="c5-s6">5.5 多處理器排程 (Multiple-Processor Scheduling)</h2>
+<ul>
+<li>有多個 CPU 時，CPU 排程變得<strong>更複雜</strong>。</li>
+<li>多個 CPU 讓 <strong>load sharing（負載分擔）</strong> 成為可能。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Homogeneous（同質性）</strong></th>
+<th><strong>Heterogeneous（異質性）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>處理器</td>
+<td>功能<strong>完全相同</strong></td>
+<td>能力<strong>不同</strong></td>
+</tr>
+<tr>
+<td>排程</td>
+<td>可以用<strong>任何</strong>可用的處理器執行佇列中的任何 process</td>
+<td>受限於各處理器的能力</td>
+</tr>
+</tbody></table></div>
+<h3>5.5.1 多處理器排程的方法</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Asymmetric multiprocessing（非對稱式）</strong></th>
+<th><strong>Symmetric multiprocessing, SMP（對稱式）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>做法</td>
+<td>所有系統活動由<strong>一個特定處理器</strong>處理，稱為 <strong>master server（主伺服器）</strong>；其他處理器只執行 user code</td>
+<td><strong>每個處理器自己排程（self-scheduling）</strong></td>
+</tr>
+<tr>
+<td>優點</td>
+<td>只有一個處理器存取系統資料結構，<strong>減少資料共享的需要</strong></td>
+<td>沒有單一處理器的瓶頸</td>
+</tr>
+<tr>
+<td>Ready queue</td>
+<td>—</td>
+<td>可以是<strong>共用的 ready queue</strong>，或<strong>每個處理器各自私有的 ready queue</strong></td>
+</tr>
+<tr>
+<td>使用</td>
+<td>—</td>
+<td><strong>幾乎所有現代 OS</strong>：Windows、Linux、macOS、Android、iOS</td>
+</tr>
+</tbody></table></div>
+<p><strong>Ready queue 的兩種組織方式</strong>：</p>
+<pre><code> (a) 共用 ready queue                 (b) 每個處理器私有 ready queue
+     ┌──────────────────┐                core0 ◄── [ T T T ]
+     │  T  T  T  T  T   │──► core0        core1 ◄── [ T T ]
+     └──────────────────┘──► core1          ⋮
+                         ──► …           coren ◄── [ T T T T ]
+                         ──► coren
+</code></pre>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：共用佇列可能有 race condition（兩個 core 同時搶同一個 thread），需要鎖保護；私有佇列沒有這個問題，也比較能利用 cache，是大多數 SMP 系統的做法，但需要 load balancing。</p>
+</blockquote>
+<h3>5.5.2 Multicore Processors（多核心處理器）</h3>
+<ul>
+<li>近年的趨勢：把多個處理器<strong>核心</strong>放在同一顆實體晶片上。<ul>
+<li>對 OS 而言，每個核心看起來就像一個獨立的實體處理器。</li>
+<li>比每個處理器各自一顆晶片<strong>更快、更省電</strong>。</li>
+</ul>
+</li>
+<li><strong>Memory stall（記憶體停滯）</strong>：處理器存取記憶體時，花大量時間<strong>等資料可用</strong>（例如發生 <strong>cache miss</strong>）。</li>
+</ul>
+<p><strong>Multithreaded multicore system（Fig. 5.13）</strong>：</p>
+<ul>
+<li>每個核心有<strong>多個 hardware thread（硬體執行緒）</strong> 的設計也越來越多。<ul>
+<li><strong>Multithreaded processor core</strong>：每個核心分配兩個以上的 hardware thread。</li>
+<li>利用 memory stall 的空檔：一個 thread 在等記憶體時，<strong>讓另一個 thread 繼續執行</strong>。</li>
+<li>對 OS 而言，每個 hardware thread 都是一個 <strong>logical processor（邏輯處理器）</strong>，可以執行一個 software thread。</li>
+<li><strong>Dual-threaded、dual-core</strong> 的系統，OS 看到 <strong>4 個 logical processor</strong>。</li>
+</ul>
+</li>
+</ul>
+<pre><code> thread1:       | C | M | C | M | C | M | C |
+ thread0:   | C | M | C | M | C | M | C |
+            ─────────────────────────────────► time
+ C = compute cycle（運算）  M = memory stall cycle（等記憶體）
+ 一個 thread 在 M 時，核心去執行另一個 thread 的 C
+</code></pre>
+<ul>
+<li><strong>CMT（Chip-Multithreading，晶片多執行緒）</strong>：每個核心分配多個 hardware thread。<strong>Intel 稱為 hyperthreading（超執行緒）</strong>。</li>
+<li><span class="tg tg-s">投影片例子</span>：<strong>4 核心、每核 2 個 hardware thread</strong> → OS 看到 <strong>8 個 logical processor</strong>（CPU0–CPU7）。</li>
+</ul>
+<p><strong>兩層排程</strong>：</p>
+<pre><code> software threads   ⌇ ⌇ ⌇ ⌇
+        level 1：OS 決定哪個 software thread 跑在哪個 hardware thread 上
+ hardware threads    ⌇   ⌇     （logical processors）
+        level 2：核心決定哪個 hardware thread 使用運算單元
+ processing core      [core]
+</code></pre>
+<ul>
+<li>若 OS <strong>知道處理器資源的共享程度</strong>，就能把 software thread 排到<strong>不共享資源</strong>的 logical processor 上。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>：一個廚師（核心）同時顧兩鍋菜（hardware thread）。一鍋在等水滾（memory stall）時，就去處理另一鍋。從外面看像有兩個廚師，但其實只有一雙手，所以兩個 hardware thread 的效能不等於兩個真正的核心。</p>
+</blockquote>
+<h3>5.5.3 Load Balancing（負載平衡）</h3>
+<ul>
+<li><strong>Load balancing</strong>：試著讓 SMP 系統中<strong>所有處理器的工作量平均分配</strong>，才能充分發揮多處理器的好處。</li>
+<li>通常只有在<strong>每個處理器各有私有 ready queue</strong> 的系統才需要；<strong>大多數 OS 採用這種方式</strong>。</li>
+<li><strong>共用 run queue</strong> 的系統通常<strong>不需要</strong>：處理器一閒下來就立刻從共用佇列取出可執行的 process。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>中文</th>
+<th>做法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Push migration</strong></td>
+<td>推送遷移</td>
+<td>一個特定的 task <strong>定期檢查</strong>各處理器的負載；發現不平衡時，把 process 從過載的處理器<strong>推</strong>到閒置或較不忙的處理器</td>
+</tr>
+<tr>
+<td><strong>Pull migration</strong></td>
+<td>拉取遷移</td>
+<td><strong>閒置的處理器</strong>從忙碌的處理器<strong>拉</strong>一個等待中的 task 過來</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>Push 與 pull 通常<strong>同時並用</strong>。<span class="tg tg-s">投影片</span> 例：<strong>Linux scheduler</strong> 與 <strong>FreeBSD ULE scheduler</strong>。</li>
+</ul>
+<h3>5.5.4 Processor Affinity（處理器親和性）</h3>
+<ul>
+<li><strong>Processor affinity</strong>（affinity：喜好、傾向）：process 對<strong>目前正在執行它的處理器</strong>有親和性。</li>
+<li>大多數 SMP 系統會<strong>盡量讓 process 留在同一個處理器上</strong>，以利用該處理器 <strong>cache</strong> 中已有的資料。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片</span> 投影片圖：記憶體中的資料 X 被載入處理器 A 的 cache。若 process 被搬到處理器 B，B 的 cache 中沒有 X，必須重新載入；A 的 cache 中的 X 也要作廢——這就是遷移的代價。</p>
+</blockquote>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>類型</th>
+<th>中文</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Soft affinity</strong></td>
+<td>軟親和性</td>
+<td><strong>盡量</strong>讓 process 留在同一處理器，但<strong>不保證</strong></td>
+</tr>
+<tr>
+<td><strong>Hard affinity</strong></td>
+<td>硬親和性</td>
+<td>系統提供 system call，讓 process <strong>指定</strong>自己只能在哪些處理器上執行</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>很多系統兩種都提供。<span class="tg tg-s">投影片</span> 例：Linux 提供 <strong><code>sched_setaffinity()</code></strong> system call 支援 hard affinity。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：Load balancing 和 processor affinity 互相拉扯——為了平衡而搬移 process，就會失去 cache 的好處。</p>
+</blockquote>
+<p><strong>NUMA 與 CPU 排程</strong>：</p>
+<ul>
+<li><strong>NUMA（Non-Uniform Memory Access）</strong> 架構：CPU 存取主記憶體某些部分比其他部分<strong>快</strong>（回顧 Ch1）。</li>
+<li>CPU 排程與記憶體配置演算法要<strong>一起考慮 affinity</strong>。</li>
+<li>若 OS 是 <strong>NUMA-aware（NUMA 感知）</strong>，會把記憶體配置在<strong>靠近</strong>該 thread 所執行 CPU 的地方。</li>
+</ul>
+<hr>
+<h2 id="c5-s7">5.6 即時 CPU 排程 (Real-Time CPU Scheduling)</h2>
+<p>即時 OS 的 CPU 排程有一些特殊問題。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Soft real-time system（軟即時系統）</strong></th>
+<th><strong>Hard real-time system（硬即時系統）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>保證</td>
+<td><strong>不保證</strong>關鍵的即時 process 何時被排程；只保證它比非關鍵的 process <strong>優先</strong></td>
+<td>工作<strong>必須在 deadline 前</strong>完成；超過 deadline 才服務，<strong>等於沒有服務</strong></td>
+</tr>
+<tr>
+<td><span class="tg tg-x">補充例子</span></td>
+<td>影音串流偶爾延遲一下還能接受</td>
+<td>汽車安全氣囊、心律調節器</td>
+</tr>
+</tbody></table></div>
+<p><strong>回顧 Ch1：Real-time 與 embedded system</strong></p>
+<ul>
+<li><strong>Embedded system（嵌入式系統）</strong>：硬體、軟體（可能再加上機械或其他零件）的組合，設計來執行<strong>特定工作</strong>。嵌入式系統差異相當大，有些有 OS、有些沒有；幾乎都執行 <strong>embedded real-time OS</strong>。</li>
+<li><strong>Real-time system</strong>：常作為專用應用中的控制裝置；有<strong>明確、固定的時間限制</strong>；必須在限制時間內回傳正確結果才算運作正確。</li>
+</ul>
+<h3>5.6.1 Minimizing Latency（最小化延遲）</h3>
+<ul>
+<li>即時系統是 <strong>event-driven（事件驅動）</strong> 的：通常在等某個即時事件發生，一發生就必須盡快回應並服務。</li>
+<li><strong>Event latency（事件延遲）</strong>：從<strong>事件發生</strong>到<strong>被服務</strong>所經過的時間。</li>
+</ul>
+<pre><code>   event E first occurs                real-time system responds to E
+          t0 ◄──────── event latency ────────► t1
+   ────────────────────────────────────────────────► Time
+</code></pre>
+<p><strong>影響效能的兩種延遲</strong><span class="tg tg-k">重點</span>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Interrupt latency（中斷延遲）</strong></th>
+<th><strong>Dispatch latency（分派延遲）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定義</td>
+<td>從<strong>中斷到達 CPU</strong> 到<strong>開始執行服務該中斷的常式（ISR）</strong> 的時間</td>
+<td>Scheduler <strong>把目前的 process 移出 CPU 並切換到另一個</strong> 所需的時間</td>
+</tr>
+<tr>
+<td>包含</td>
+<td>判斷中斷類型 → context switch → 開始 ISR</td>
+<td><strong>Conflicts</strong> 階段 ＋ <strong>Dispatch</strong> 階段</td>
+</tr>
+<tr>
+<td>要求</td>
+<td>即時 OS 應該<strong>最小化</strong>；硬即時系統必須<strong>有上限（bounded）</strong></td>
+<td>保持低 dispatch latency <strong>最有效的方法是提供 preemptive kernel</strong></td>
+</tr>
+</tbody></table></div>
+<p><strong>Dispatch latency 的組成</strong>（投影片圖）：</p>
+<pre><code> event                                                    response to event
+   │◄───────────────────── response interval ──────────────────────►│
+   │◄ interrupt ►│◄────────── dispatch latency ──────────►│◄ real-time ►│
+   │ processing  │◄── conflicts ──►│◄──── dispatch ─────►│  process    │
+                 ↑                                        │  execution  │
+         process made available
+</code></pre>
+<ul>
+<li><strong>Conflicts（衝突階段）</strong>：(1) 搶占 kernel 中正在執行的任何 process；(2) 讓低優先權 process 釋放高優先權 process 需要的資源。（<span class="tg tg-x">補充</span>，取自課本對此圖的說明）</li>
+<li><strong>Dispatch</strong>：把高優先權 process 排上可用的 CPU。</li>
+</ul>
+<h3>5.6.2 Priority-based Scheduling（以優先權為基礎的排程）</h3>
+<ul>
+<li>即時排程器必須支援 <strong>preemptive、priority-based</strong> 排程。<ul>
+<li>但這<strong>只保證 soft real-time</strong>。</li>
+<li><span class="tg tg-s">投影片</span> 例：Linux、Windows、Solaris 都給即時 process <strong>最高優先權</strong>。</li>
+</ul>
+</li>
+<li><strong>Hard real-time</strong> 還必須提供<strong>滿足 deadline</strong> 的能力。</li>
+</ul>
+<p><strong>Periodic process（週期性行程）的特性</strong>：</p>
+<ul>
+<li>以<strong>固定間隔</strong>需要 CPU。</li>
+<li>有固定的 <strong>processing time t（處理時間）</strong>、<strong>deadline d（截止期限）</strong>、<strong>period p（週期）</strong>。</li>
+<li><strong>0 ≤ t ≤ d ≤ p</strong></li>
+<li>週期性工作的 <strong>rate（速率）</strong> 是 <strong>1/p</strong>。</li>
+</ul>
+<pre><code>   |◄──────── p ────────►|◄──────── p ────────►|◄──────── p ────────►|
+   |◄──── d ────►|        |◄──── d ────►|        |◄──── d ────►|
+   |◄ t ►|               |◄ t ►|               |◄ t ►|
+   [████]                [████]                [████]
+   period1               period2               period3          → Time
+</code></pre>
+<p><strong>Admission control（准入控制）</strong>：</p>
+<ul>
+<li>Process 可能要向排程器<strong>宣告它的 deadline 需求</strong>。</li>
+<li>排程器用 <strong>admission-control algorithm</strong>：<ul>
+<li><strong>接受（admit）</strong> 該 process，並保證它能準時完成；或</li>
+<li>若無法保證在 deadline 前服務完，就<strong>拒絕（reject）</strong> 這個請求。</li>
+</ul>
+</li>
+</ul>
+<h3>5.6.3 Rate-Monotonic Scheduling（RMS，速率單調排程）<span class="tg tg-k">重點</span></h3>
+<ul>
+<li>用<strong>靜態優先權（static priority）</strong> 加上<strong>搶占</strong>來排程週期性工作。</li>
+<li>優先權與<strong>週期成反比</strong>：<ul>
+<li><strong>週期越短 → 優先權越高</strong>（週期越短的先做；速率越高的先做）</li>
+<li>週期越長 → 優先權越低</li>
+<li>理由：越常需要 CPU 的工作，給越高的優先權。</li>
+</ul>
+</li>
+<li>假設週期性 process 每次 CPU burst 的處理時間都相同。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 1：P1：p1 = 50、t1 = 20；P2：p2 = 100、t2 = 35</p>
+<ul>
+<li><strong>Admission control</strong>：檢查能否讓這些工作都趕上 deadline。<ul>
+<li>CPU 使用率：P1 = 20/50 = <strong>0.4</strong>，P2 = 35/100 = <strong>0.35</strong>，總和 0.75。</li>
+</ul>
+</li>
+<li>P1 週期較短，<strong>P1 的優先權高於 P2</strong>。</li>
+</ul>
+<p>（<span class="tg tg-x">補充</span>：完整排程如下，兩者都趕上 deadline。）</p>
+<pre><code>| P1 |   P2   | P1 |P2|  idle  | P1 |   P2   | P1 |P2| idle |
+0   20       50   70 75       100  120     150  170 175    200
+Deadlines:      P1(50)    P1,P2(100)      P1(150)    P1,P2(200)
+</code></pre>
+<p>P2 在 20–50 跑了 30，被 50 到達的 P1 搶占，70–75 跑完剩下的 5，在 deadline 100 之前完成。</p>
+</blockquote>
+<p><strong>RMS 的限制</strong>：</p>
+<ul>
+<li>RMS 是<strong>最佳的</strong>（在靜態優先權演算法中），但有一個限制：<strong>CPU 使用率有上限</strong>，不一定能把 CPU 資源用滿。</li>
+<li>排程 N 個 process 的<strong>最壞情況 CPU 使用率上限</strong>：</li>
+</ul>
+<pre><code>U ≤ N (2^(1/N) − 1)
+
+N = 2 時：2 × (√2 − 1) = 0.828…，約 83%
+</code></pre>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span> 2：<strong>RMS 錯過 deadline</strong>——P1：p1 = 50、t1 = 25；P2：p2 = 80、t2 = 35</p>
+<ul>
+<li>使用率 = 25/50 + 35/80 = 0.5 + 0.4375 ≈ <strong>94%</strong>，超過 83% 的上限。</li>
+</ul>
+<pre><code>|   P1   |   P2   |   P1   |P2|
+0       25       50       75 80  ← P2 的 deadline 80 到了，卻只做了 25 + 5 = 30，還差 5
+</code></pre>
+<ul>
+<li>P1 優先權較高，0–25 先跑；P2 跑 25–50 後被 50 到達的 P1 搶占；P1 跑到 75；P2 只剩 75–80 這 5 ms，<strong>來不及在 80 之前完成 35</strong>。</li>
+</ul>
+<p><span class="tg tg-x">補充</span>：使用率超過上限<strong>不代表一定</strong>會錯過 deadline，只是 RMS <strong>不再保證</strong>；低於上限則保證一定排得出來。</p>
+</blockquote>
+<h3>5.6.4 Earliest-Deadline-First Scheduling（EDF，最早截止期限優先）<span class="tg tg-k">重點</span></h3>
+<ul>
+<li>Process 變成可執行時，向排程器<strong>宣告它的 deadline</strong>。</li>
+<li><strong>動態（dynamically）</strong> 依 deadline 指定優先權：<ul>
+<li><strong>deadline 越早 → 優先權越高</strong></li>
+<li>deadline 越晚 → 優先權越低</li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：同一組 P1：p1 = 50、t1 = 25；P2：p2 = 80、t2 = 35（RMS 排不出來的那組）</p>
+<pre><code>|  P1  |    P2    |  P1  | P2 |  P1  | P2 |   | P1 ...
+0     25         60     85  100   125  145  150
+</code></pre>
+<ul>
+<li>0–25：P1（deadline 50）先跑完。</li>
+<li>25：只剩 P2（deadline 80）。50 時 P1 的第二期到達，deadline 是 100，<strong>比 P2 的 80 晚</strong>，所以 P2 <strong>不被搶占</strong>，一路跑到 60 完成。</li>
+<li>60–85：P1（deadline 100）。80 時 P2 的第二期到達，deadline 160，比 P1 的 100 晚，不搶占。</li>
+<li>85–100：P2。100 時 P1 第三期到達，deadline 150 <strong>早於</strong> P2 的 160 → P1 搶占。</li>
+<li>100–125：P1；125–145：P2 做完剩下的 20；145–150 閒置；150 起 P1……</li>
+<li><strong>所有 deadline 都趕上了</strong>。</li>
+</ul>
+</blockquote>
+<p><strong>EDF 的特點</strong>：</p>
+<ul>
+<li>與 RMS 不同，EDF <strong>不要求 process 是週期性的</strong>，也<strong>不要求每次 burst 的 CPU 時間固定</strong>。</li>
+<li>EDF <strong>理論上是最佳的</strong>：能讓每個 process 都趕上 deadline，且 CPU 使用率可達 <strong>100%</strong>。</li>
+<li>實際上<strong>不可能達到 100%</strong>：process 之間的 context switch 與中斷處理都有成本。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>RMS</strong></th>
+<th><strong>EDF</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>優先權</td>
+<td><strong>靜態</strong>：依<strong>週期</strong>（週期短 → 高）</td>
+<td><strong>動態</strong>：依<strong>deadline</strong>（越早 → 高）</td>
+</tr>
+<tr>
+<td>是否要求週期性</td>
+<td>是</td>
+<td>否</td>
+</tr>
+<tr>
+<td>CPU 使用率上限</td>
+<td>N(2^(1/N) − 1)，N = 2 約 83%</td>
+<td>理論上 100%</td>
+</tr>
+</tbody></table></div>
+<h3>5.6.5 Proportional Share Scheduling（比例分配排程）</h3>
+<ul>
+<li>把 <strong>T 份（shares）</strong> 分配給所有應用程式。</li>
+<li>一個應用程式拿到 <strong>N 份</strong>，就保證它得到總處理器時間的 <strong>N / T</strong>（N &lt; T）。</li>
+<li><span class="tg tg-s">投影片</span> 例：T = 100 份——A 拿 50 份、B 拿 15 份、C 拿 20 份 → A 得到 50%、B 15%、C 20% 的處理器時間。</li>
+<li>必須搭配 <strong>admission-control policy</strong>：只有在<strong>剩下的份數足夠</strong>時，才接受要求特定份數的 client。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>延伸：上例已用掉 85 份，若再有 D 要求 30 份，就會被拒絕（只剩 15 份）。</p>
+</blockquote>
+<h3>5.6.6 POSIX Real-Time Scheduling</h3>
+<ul>
+<li>依據 <strong>POSIX.1b</strong> 標準；POSIX API 提供排程即時 thread 的相關函式。</li>
+<li>為即時 thread 定義<strong>兩種排程類別</strong>：</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>類別</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong><code>SCHED_FIFO</code></strong></td>
+<td>用 FIFO 佇列，以 <strong>FCFS</strong> 排程；<strong>相同優先權的 thread 之間沒有 time-slicing</strong></td>
+</tr>
+<tr>
+<td><strong><code>SCHED_RR</code></strong></td>
+<td>和 <code>SCHED_FIFO</code> 類似，但<strong>相同優先權的 thread 之間會 time-slicing</strong>（輪流）</td>
+</tr>
+</tbody></table></div>
+<p>（另外還有 <strong><code>SCHED_OTHER</code></strong>，由系統自行定義，非即時。）</p>
+<ul>
+<li>取得與設定排程策略的兩個函式：<ul>
+<li><code>pthread_attr_getschedpolicy(pthread_attr_t *attr, int *policy)</code></li>
+<li><code>pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy)</code></li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>（Fig. 5.25）：POSIX real-time scheduling API</p>
+<pre><code class="language-c">#include &lt;pthread.h&gt;
+#include &lt;stdio.h&gt;
+#define NUM_THREADS 5
+
+int main(int argc, char *argv[])
+{
+    int i, policy;
+    pthread_t tid[NUM_THREADS];
+    pthread_attr_t attr;
+
+    /* get the default attributes */
+    pthread_attr_init(&amp;attr);
+
+    /* get the current scheduling policy */
+    if (pthread_attr_getschedpolicy(&amp;attr, &amp;policy) != 0)
+        fprintf(stderr, &quot;Unable to get policy.\n&quot;);
+    else {
+        if (policy == SCHED_OTHER) printf(&quot;SCHED_OTHER\n&quot;);
+        else if (policy == SCHED_RR) printf(&quot;SCHED_RR\n&quot;);
+        else if (policy == SCHED_FIFO) printf(&quot;SCHED_FIFO\n&quot;);
+    }
+
+    /* set the scheduling policy - FIFO, RR, or OTHER */
+    if (pthread_attr_setschedpolicy(&amp;attr, SCHED_FIFO) != 0)
+        fprintf(stderr, &quot;Unable to set policy.\n&quot;);
+
+    /* create the threads */
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_create(&amp;tid[i], &amp;attr, runner, NULL);
+
+    /* now join on each thread */
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_join(tid[i], NULL);
+}
+
+/* Each thread will begin control in this function */
+void *runner(void *param)
+{
+    /* do some work ... */
+    pthread_exit(0);
+}
+</code></pre>
+<p><span class="tg tg-w">留意</span> 投影片第 89 頁把函式名稱寫成 <code>pthread_attr_getsched _policy</code>（多了空格、多了底線），正確名稱是程式碼中的 <strong><code>pthread_attr_getschedpolicy</code></strong>；<code>pthread exit</code> 也應為 <code>pthread_exit</code>。</p>
+</blockquote>
+<hr>
+<h2 id="c5-s8">5.7 作業系統實例 (Operating-System Examples)</h2>
+<h3>5.7.1 Linux Scheduling</h3>
+<h4>版本 2.5 之前與 2.5：O(1) scheduler</h4>
+<ul>
+<li>2.5 之前：使用標準 UNIX 排程演算法的變形。</li>
+<li><strong>2.5 版改成常數時間 O(1) 的排程</strong>：<ul>
+<li><strong>Preemptive、priority-based</strong></li>
+<li>兩個優先權範圍：<strong>time-sharing</strong> 與 <strong>real-time</strong></li>
+<li><strong>Real-time 範圍 0–99</strong>，<strong>nice value 對應 100–140</strong></li>
+<li>對應到全域優先權，<strong>數值越小優先權越高</strong></li>
+<li><strong>優先權越高，quantum 越大</strong></li>
+<li>Task 只要 time slice 還有剩就可執行（<strong>active</strong>）；用完了（<strong>expired</strong>）就要等所有其他 task 用完各自的 slice 才能再執行</li>
+<li>所有可執行的 task 記錄在<strong>每個 CPU 一個的 runqueue</strong> 資料結構中：<ul>
+<li>兩個 priority array：<strong>active</strong> 與 <strong>expired</strong></li>
+<li>Task 依優先權建立索引</li>
+<li>active array 空了，兩個 array <strong>互換</strong></li>
+</ul>
+</li>
+<li>效果不錯，但<strong>互動式 process 的回應時間差</strong>。</li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-w">
+<p><span class="tg tg-w">留意</span> 投影片第 93 頁寫 nice value 對應「100 to 140」，但第 98 頁說 nice +19 對應到全域優先權 <strong>139</strong>，兩者不一致。依課本，一般 task 的範圍是 <strong>100–139</strong>（nice −20 ~ +19 共 40 級），140 個優先權編號是 0–139。</p>
+</blockquote>
+<pre><code> active array                    expired array
+ priority   task lists           priority   task lists
+   [0]      ○─○                    [0]      ○─○─○
+   [1]      ○─○─○                  [1]      ○
+    ⋮                               ⋮
+  [140]     ○                     [140]     ○─○
+</code></pre>
+<h4>版本 2.6.23 之後：CFS<span class="tg tg-k">重點</span></h4>
+<p><strong>CFS（Completely Fair Scheduler，完全公平排程器）</strong>：</p>
+<ul>
+<li><strong>Scheduling class（排程類別）</strong>：<ul>
+<li>每個類別有特定的優先權。</li>
+<li>排程器選擇<strong>最高優先權類別中、優先權最高的 task</strong>。</li>
+<li>不再用固定長度的 quantum，而是依 <strong>CPU 時間的比例</strong>分配。</li>
+<li>內建 2 個類別，可以再加：(1) <strong>default</strong>、(2) <strong>real-time</strong>。</li>
+</ul>
+</li>
+<li>依 <strong>nice value（−20 到 +19）</strong> 計算 quantum：<ul>
+<li><strong>數值越低，優先權越高</strong>。</li>
+<li>計算 <strong>target latency（目標延遲）</strong>：每個 task 至少應該執行一次的時間間隔。</li>
+<li>Active task 數量增加時，target latency 可能變大。</li>
+</ul>
+</li>
+<li>CFS 為每個 task 維護一個 <strong>virtual run time（虛擬執行時間）</strong>，存在變數 <strong><code>vruntime</code></strong>：<ul>
+<li>依 task 的優先權有一個 <strong>decay factor（衰減係數）</strong>：<strong>優先權越低，衰減率越高</strong>（vruntime 增加得越快）。</li>
+<li><strong>預設（normal）優先權</strong>的 task：virtual run time ＝ 實際執行時間。</li>
+</ul>
+</li>
+<li><strong>選擇 vruntime 最小的 task</strong> 作為下一個執行者。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>CFS 的效能</strong></p>
+<ul>
+<li>每個可執行的 task 放在一棵 <strong>red-black tree（紅黑樹）</strong> 中——一種平衡二元搜尋樹，<strong>key 是 <code>vruntime</code></strong>。</li>
+<li>Task 變成可執行時加入樹；不可執行時（例如在等 I/O）從樹中移除。</li>
+<li>拿到較少處理時間的 task（<code>vruntime</code> 較小）在樹的<strong>左邊</strong>；拿到較多的在右邊。</li>
+<li><strong>最左邊的節點</strong> <code>vruntime</code> 最小，就是<strong>優先權最高</strong>的 task。</li>
+<li>樹是平衡的，找最左節點需要 <strong>O(lg N)</strong>；但 Linux 把這個值快取在變數 <strong><code>rb_leftmost</code></strong>，所以決定下一個 task 只需要讀取快取值。</li>
+</ul>
+<p><span class="tg tg-x">補充</span>：回顧 Ch1 的 kernel data structures——投影片當時就提到「Linux uses red-black tree in CPU scheduling」，指的就是這裡。</p>
+<p><span class="tg tg-x">補充例子</span>：CFS 像輪流玩遊戲機，誰玩得最少誰下一個玩。優先權高的人，計時器走得比較慢，所以能玩比較久。</p>
+</blockquote>
+<p><strong>Real-time 與全域優先權</strong>：</p>
+<ul>
+<li>Real-time 排程依照 <strong>POSIX.1b</strong>；real-time task 有<strong>靜態</strong>優先權。</li>
+<li>Real-time 加上一般 task 對應到同一套全域優先權：</li>
+</ul>
+<pre><code> 0 ──────────── 99 | 100 ──────────── 139
+     real-time      |       normal
+ 數字越小 → 優先權越高
+ nice −20 → 100        nice +19 → 139
+</code></pre>
+<p><strong>Linux 的負載平衡與 NUMA</strong>：</p>
+<ul>
+<li>Linux 支援 load balancing，同時也是 <strong>NUMA-aware</strong>。</li>
+<li><strong>Scheduling domain（排程網域）</strong>：一組可以互相平衡負載的 CPU 核心。</li>
+<li>網域依照<strong>共享的資源</strong>（例如 cache）來組織。目標是<strong>避免 thread 在網域之間遷移</strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：一個 physical processor domain（NUMA node）下有 domain0（core0、core1 共用一個 L2）與 domain1（core2、core3 共用一個 L2），四個核心共用 L3。Thread 盡量在同一個 domain 內移動，才不會失去 L2 cache 中的資料。</p>
+</blockquote>
+<h3>5.7.2 Windows Scheduling</h3>
+<ul>
+<li>Windows 使用 <strong>priority-based preemptive scheduling（以優先權為基礎的可搶占排程）</strong>。</li>
+<li><strong>優先權最高的 thread 下一個執行</strong>。</li>
+<li><strong>Dispatcher 就是 scheduler</strong>。</li>
+<li>Thread 一直執行，直到：(1) <strong>block</strong>、(2) <strong>用完 time slice</strong>、(3) <strong>被更高優先權的 thread 搶占</strong>、(4) <strong>終止</strong>。</li>
+<li>Real-time thread 可以搶占非 real-time thread。</li>
+<li><strong>32 級優先權</strong>：<ul>
+<li><strong>Variable class（可變類別）：1–15</strong></li>
+<li><strong>Real-time class（即時類別）：16–31</strong></li>
+<li><strong>優先權 0</strong>：memory-management thread</li>
+</ul>
+</li>
+<li>每個優先權一個佇列。</li>
+<li>沒有可執行的 thread 時，執行 <strong>idle thread</strong>。</li>
+</ul>
+<p><strong>Windows 優先權類別（priority class）與相對優先權（relative priority）</strong>：</p>
+<ul>
+<li>Win32 API 定義 process 可屬於的幾種 priority class：
+<code>REALTIME_PRIORITY_CLASS</code>、<code>HIGH_PRIORITY_CLASS</code>、<code>ABOVE_NORMAL_PRIORITY_CLASS</code>、<code>NORMAL_PRIORITY_CLASS</code>、<code>BELOW_NORMAL_PRIORITY_CLASS</code>、<code>IDLE_PRIORITY_CLASS</code><ul>
+<li>除了 <strong>REALTIME</strong> 之外都是 <strong>variable</strong>（可變的）。</li>
+</ul>
+</li>
+<li>某個 priority class 內的 thread 有一個 <strong>relative priority</strong>：
+<code>TIME_CRITICAL</code>、<code>HIGHEST</code>、<code>ABOVE_NORMAL</code>、<code>NORMAL</code>、<code>BELOW_NORMAL</code>、<code>LOWEST</code>、<code>IDLE</code></li>
+<li><strong>Priority class ＋ relative priority → 數字優先權</strong>：</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：Windows thread priorities</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Relative priority ＼ Priority class</th>
+<th>real-time</th>
+<th>high</th>
+<th>above normal</th>
+<th>normal</th>
+<th>below normal</th>
+<th>idle priority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>time-critical</strong></td>
+<td>31</td>
+<td>15</td>
+<td>15</td>
+<td>15</td>
+<td>15</td>
+<td>15</td>
+</tr>
+<tr>
+<td><strong>highest</strong></td>
+<td>26</td>
+<td>15</td>
+<td>12</td>
+<td>10</td>
+<td>8</td>
+<td>6</td>
+</tr>
+<tr>
+<td><strong>above normal</strong></td>
+<td>25</td>
+<td>14</td>
+<td>11</td>
+<td>9</td>
+<td>7</td>
+<td>5</td>
+</tr>
+<tr>
+<td><strong>normal</strong></td>
+<td><strong>24</strong></td>
+<td><strong>13</strong></td>
+<td><strong>10</strong></td>
+<td><strong>8</strong></td>
+<td><strong>6</strong></td>
+<td><strong>4</strong></td>
+</tr>
+<tr>
+<td><strong>below normal</strong></td>
+<td>23</td>
+<td>12</td>
+<td>9</td>
+<td>7</td>
+<td>5</td>
+<td>3</td>
+</tr>
+<tr>
+<td><strong>lowest</strong></td>
+<td>22</td>
+<td>11</td>
+<td>8</td>
+<td>6</td>
+<td>4</td>
+<td>2</td>
+</tr>
+<tr>
+<td><strong>idle</strong></td>
+<td>16</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+</tr>
+</tbody></table></div>
+<p>例如：NORMAL_PRIORITY_CLASS 中 relative priority 為 HIGHEST 的 thread，數字優先權是 <strong>10</strong>。</p>
+</blockquote>
+<p><strong>優先權的動態調整</strong>：</p>
+<ul>
+<li><strong>Base priority（基礎優先權）</strong> 是該 class 中的 <strong>NORMAL</strong> 那一格（表中粗體）。</li>
+<li><strong>Quantum 用完</strong> → 優先權<strong>降低</strong>，但<strong>絕不低於 base</strong>。</li>
+<li>發生<strong>等待（wait）</strong> 後 → 依等待的對象<strong>提高（boost）</strong> 優先權（例如等鍵盤輸入的 boost 比等磁碟的大）。</li>
+<li><strong>前景視窗（foreground window）</strong> 的 quantum 給 <strong>3 倍</strong>的加成（3x priority boost）。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充</span>：這些動態調整的目的都是讓<strong>互動式</strong>的 thread 回應更快——你正在操作的視窗、剛等到鍵盤輸入的程式，會優先拿到 CPU。</p>
+</blockquote>
+<ul>
+<li><strong>Windows 7</strong> 加入 <strong>UMS（User-Mode Scheduling，使用者模式排程）</strong>：<ul>
+<li>應用程式<strong>獨立於 kernel</strong> 建立與管理 thread。</li>
+<li>對大量 thread 而言<strong>有效率得多</strong>。</li>
+<li>UMS 排程器來自程式語言函式庫，例如 <strong>C++ Concurrent Runtime（ConcRT）</strong> framework。</li>
+</ul>
+</li>
+</ul>
+<h3>5.7.3 Solaris Scheduling</h3>
+<ul>
+<li><strong>Priority-based scheduling</strong>。</li>
+<li><strong>六種類別</strong>：</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>類別</th>
+<th>縮寫</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Time sharing（<strong>預設</strong>）</td>
+<td><strong>TS</strong></td>
+</tr>
+<tr>
+<td>Interactive</td>
+<td><strong>IA</strong></td>
+</tr>
+<tr>
+<td>Real time</td>
+<td><strong>RT</strong></td>
+</tr>
+<tr>
+<td>System</td>
+<td><strong>SYS</strong></td>
+</tr>
+<tr>
+<td>Fair Share</td>
+<td><strong>FSS</strong></td>
+</tr>
+<tr>
+<td>Fixed priority</td>
+<td><strong>FP</strong>（圖中標 FX）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>一個 thread 同一時間只屬於一個類別；每個類別有自己的排程演算法。</li>
+<li><strong>Time sharing 是 multilevel feedback queue</strong>，使用系統管理員可設定的 <strong>loadable table</strong>。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>Solaris 的 time-sharing 與 interactive thread dispatch table</strong>（數字越大優先權越高，節錄）</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Time quantum</th>
+<th>Time quantum expired</th>
+<th>Return from sleep</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>200</td>
+<td>0</td>
+<td>50</td>
+</tr>
+<tr>
+<td>5</td>
+<td>200</td>
+<td>0</td>
+<td>50</td>
+</tr>
+<tr>
+<td>10</td>
+<td>160</td>
+<td>0</td>
+<td>51</td>
+</tr>
+<tr>
+<td>20</td>
+<td>120</td>
+<td>10</td>
+<td>52</td>
+</tr>
+<tr>
+<td>30</td>
+<td>80</td>
+<td>20</td>
+<td>53</td>
+</tr>
+<tr>
+<td>40</td>
+<td>40</td>
+<td>30</td>
+<td>55</td>
+</tr>
+<tr>
+<td>50</td>
+<td>40</td>
+<td>40</td>
+<td>58</td>
+</tr>
+<tr>
+<td>59</td>
+<td>20</td>
+<td>49</td>
+<td>59</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li><strong>Time quantum</strong>：該優先權得到的時間片。<strong>優先權越高，quantum 越小</strong>（反向關係）。</li>
+<li><strong>Time quantum expired</strong>：用完整個 quantum（沒有 block）後的<strong>新優先權</strong>——被<strong>降級</strong>（CPU-bound 的 thread 往下沉）。</li>
+<li><strong>Return from sleep</strong>：從睡眠（例如等完 I/O）回來後的新優先權——被<strong>提升到 50–59</strong>（互動式 thread 往上浮）。</li>
+</ul>
+<p><span class="tg tg-x">補充</span>：這正是 5.3.6 的 multilevel feedback queue 實作——用完 quantum 降級、等 I/O 回來升級。</p>
+</blockquote>
+<ul>
+<li>排程器把各類別的優先權轉成<strong>每個 thread 的全域優先權</strong>：<ul>
+<li>全域優先權最高的 thread 下一個執行。</li>
+<li>Thread 一直執行到 (1) block、(2) 用完 time slice、(3) 被更高優先權的 thread 搶占。</li>
+<li>相同優先權的多個 thread 用 <strong>RR</strong> 選擇。</li>
+</ul>
+</li>
+</ul>
+<pre><code> global priority                         scheduling order
+  169 ┐ interrupt threads                      first
+  160 ┘
+  159 ┐ realtime (RT) threads
+  100 ┘
+   99 ┐ system (SYS) threads
+   60 ┘
+   59 ┐ fair share (FSS)、fixed priority (FX)、
+    0 ┘ timeshare (TS)、interactive (IA) threads   last
+</code></pre>
+<hr>
+<h2 id="c5-s9">5.8 演算法評估 (Algorithm Evaluation)</h2>
+<p>選擇 CPU 排程演算法的準則可能結合多項量測，例如：</p>
+<ul>
+<li>在<strong>最大回應時間 300 ms</strong> 的限制下，最大化 CPU 使用率。</li>
+<li>最大化 throughput，使 turnaround time（平均而言）與總執行時間<strong>成線性比例</strong>。</li>
+</ul>
+<p><strong>四種評估方法</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>中文</th>
+<th>一句話</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Deterministic modeling</strong></td>
+<td>決定性模型</td>
+<td>拿一組固定的工作負載，算出每個演算法的表現</td>
+</tr>
+<tr>
+<td><strong>Queueing models</strong></td>
+<td>佇列模型</td>
+<td>用機率分布與數學公式分析</td>
+</tr>
+<tr>
+<td><strong>Simulations</strong></td>
+<td>模擬</td>
+<td>寫程式模擬電腦系統</td>
+</tr>
+<tr>
+<td><strong>Implementation</strong></td>
+<td>實作</td>
+<td>直接寫進 OS 實際跑</td>
+</tr>
+</tbody></table></div>
+<h3>5.8.1 Deterministic Modeling（決定性模型）</h3>
+<p>（deterministic：既定性的、決定性的）</p>
+<ul>
+<li>拿一組<strong>特定、預先決定好的工作負載</strong>，定義每個演算法在這組負載下的效能。</li>
+<li>優點：<strong>簡單、快速</strong>；給出<strong>確切的數字</strong>，可以直接比較演算法。</li>
+<li>缺點：需要<strong>確切的輸入數字</strong>，答案也只適用於這些情況；<strong>太特定</strong>，需要太多確切的知識才有用。</li>
+<li>主要用途：<strong>描述排程演算法</strong>與<strong>提供範例</strong>（本章的例子都是這種）。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：5 個 process，全部在時間 0 到達</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>10</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>29</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>3</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>7</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>12</td>
+</tr>
+</tbody></table></div>
+<p><strong>FCFS</strong>：</p>
+<pre><code>|   P1   |           P2            | P3 |  P4  |    P5    |
+0       10                        39   42     49         61
+</code></pre>
+<p>等待：0、10、39、42、49 → 平均 140 / 5 = <strong>28 ms</strong></p>
+<p><strong>SJF</strong>（nonpreemptive）：</p>
+<pre><code>| P3 |  P4  |   P1   |    P5    |           P2            |
+0    3     10       20         32                        61
+</code></pre>
+<p>等待：P1 = 10、P2 = 32、P3 = 0、P4 = 3、P5 = 20 → 平均 65 / 5 = <strong>13 ms</strong></p>
+<p><strong>RR</strong>（q = 10）：</p>
+<pre><code>|   P1   |   P2   | P3 |  P4  |   P5   |   P2   |P5|  P2  |
+0       10       20   23     30       40       50 52     61
+</code></pre>
+<p>等待：P1 = 0、P2 = 61 − 29 = 32、P3 = 20、P4 = 23、P5 = 52 − 12 = 40 → 平均 115 / 5 = <strong>23 ms</strong></p>
+<p>結論：這組負載下 <strong>SJF 最好</strong>（13），RR 次之（23），FCFS 最差（28）。</p>
+</blockquote>
+<h3>5.8.2 Queueing Models（佇列模型）</h3>
+<ul>
+<li>很多系統上執行的 process <strong>每天都不同</strong>，沒有一組固定的 process（與時間）能用於 deterministic modeling。</li>
+<li>可以決定的是：<ul>
+<li><strong>CPU 與 I/O burst 的分布</strong>：描述某個 CPU burst 出現機率的數學公式，通常是 <strong>exponential（指數）分布</strong>，用<strong>平均值（mean）</strong> 描述。</li>
+<li><strong>Process 到達時間的分布</strong>。</li>
+</ul>
+</li>
+<li>這些分布可以實際量測後近似，或直接估計。</li>
+</ul>
+<p><strong>Modeling computer system（電腦系統的建模）</strong>：</p>
+<ul>
+<li>把電腦系統描述成一個 <strong>network of servers（伺服器網路）</strong>。<ul>
+<li>每個 server 有一個等待中的 process 佇列。</li>
+<li><strong>CPU</strong> 是一個 server，它的佇列是 ready queue；<strong>I/O 系統</strong>也是，它的佇列是 device queue。</li>
+</ul>
+</li>
+<li><strong>Queueing-network analysis（佇列網路分析）</strong>：<ul>
+<li><strong>已知</strong>：arrival rate（到達率）與 service rate（服務率）</li>
+<li><strong>計算</strong>：使用率、平均佇列長度、平均等待時間等</li>
+</ul>
+</li>
+</ul>
+<p><strong>Little&#39;s formula（Little 公式）</strong><span class="tg tg-k">重點</span>：</p>
+<pre><code>n = λ × W
+</code></pre>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>符號</th>
+<th>意義</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>n</strong></td>
+<td>平均<strong>佇列長度</strong>（不含正在被服務的 process）</td>
+</tr>
+<tr>
+<td><strong>W</strong></td>
+<td>佇列中的平均<strong>等待時間</strong></td>
+</tr>
+<tr>
+<td><strong>λ</strong></td>
+<td>新 process 的平均<strong>到達率</strong></td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>成立條件：系統處於<strong>穩態（steady state）</strong>，即 <strong>process 到達率 = process 離開率</strong>。</li>
+<li>知道其中兩個就能算出第三個。</li>
+</ul>
+<blockquote class="bq-x">
+<p><span class="tg tg-x">補充例子</span>：平均每秒到達 7 個 process（λ = 7），佇列中平均有 14 個 process（n = 14），則平均等待時間 W = n / λ = 14 / 7 = <strong>2 秒</strong>。</p>
+<p><span class="tg tg-x">補充</span>比喻：一家拉麵店每分鐘來 2 位客人，每位平均要在門口排 10 分鐘，那門口平均就有 2 × 10 = 20 人在排隊。</p>
+</blockquote>
+<ul>
+<li>用來比較排程演算法很有用，但<strong>有限制</strong>：到達與服務的分布常被定義成<strong>不切實際、但數學上容易處理（tractable）</strong> 的形式。</li>
+</ul>
+<h3>5.8.3 Simulations（模擬）</h3>
+<ul>
+<li>模擬能對排程演算法做<strong>更準確</strong>的評估。</li>
+<li>用軟體寫出電腦系統的模型：<ul>
+<li><strong>Simulator（模擬器）</strong>：有一個代表<strong>時鐘（clock）</strong> 的變數；時鐘增加時，模擬器修改系統狀態，反映裝置、process 與排程器的活動。</li>
+<li><strong>Input data（輸入資料）</strong></li>
+<li><strong>Output of statistics（統計輸出）</strong></li>
+</ul>
+</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：模擬器的結構</p>
+<p><strong>輸入</strong>：每筆紀錄包含 <code>pid</code>、<code>arrive-time</code>、<code>burst-time</code>、<code>priority</code></p>
+<p><strong>模擬器</strong>（虛擬碼）：</p>
+<pre><code>clock = 0
+While not-end-of-input-records
+{
+    if clock == r.arrive-time
+        RunPolicy        // preemptive
+    if clock == r.finish-time
+        RunPolicy        // non-preemptive
+                         // preemptive
+    clock++;
+    ....
+}
+</code></pre>
+<p>每個排程物件：</p>
+<pre><code>Class schedule
+{
+    checkinthread();
+    checkoutthread();
+}
+</code></pre>
+<p><strong>輸出</strong>：Gantt chart、平均等待時間、平均 turnaround time、context switch 次數、完成所有 process 所需的總時間</p>
+<p>說明：nonpreemptive 演算法只在有 process <strong>完成</strong>時才需要重新決策；preemptive 演算法在有 process <strong>到達</strong>時也要重新決策（看新來的是否應該搶占）。</p>
+</blockquote>
+<p><strong>驅動模擬器的資料來源</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>方式</th>
+<th>中文</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Distribution-driven simulation</strong></td>
+<td>分布驅動模擬</td>
+<td><strong>隨機產生</strong>資料；分布可以用數學定義，或<strong>依經驗（empirically）</strong> 定義</td>
+</tr>
+<tr>
+<td><strong>Simulation with trace tapes</strong></td>
+<td>追蹤磁帶模擬</td>
+<td>監控<strong>真實系統</strong>、記錄實際事件序列，做成 <strong>trace tape</strong>，再拿來驅動模擬</td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：用 trace tape 評估排程器</p>
+<pre><code> actual process execution ──record──► trace tape
+                                       CPU 10
+                                       I/O 213
+                                       CPU 12        ──► simulation (FCFS)   ──► performance statistics for FCFS
+                                       I/O 112       ──► simulation (SJF)    ──► performance statistics for SJF
+                                       CPU 2         ──► simulation (RR, q=14) ► performance statistics for RR
+                                       I/O 147
+                                       CPU 173
+                                         ⋮
+</code></pre>
+<p>同一份真實紀錄餵給不同演算法的模擬器，就能在<strong>完全相同的輸入</strong>下比較它們。</p>
+</blockquote>
+<h3>5.8.4 Implementation（實作）</h3>
+<ul>
+<li>評估排程演算法<strong>唯一完全準確</strong>的方法：<strong>把它寫進 OS</strong>，看它實際運作得如何。</li>
+<li>讓真正的演算法在<strong>真實系統、真實運作條件</strong>下接受評估。</li>
+<li>主要困難：<strong>成本很高</strong>（要修改 OS、測試，還要觀察使用者的反應；使用者也可能改變行為來配合新排程器）。</li>
+</ul>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片例子</span>：<strong>NCNU IM OS Simulator</strong>——<a href="http://ossim.im.ncnu.edu.tw/" target="_blank" rel="noopener">http://ossim.im.ncnu.edu.tw/</a>
+暨大資管系的作業系統線上模擬器（Operating System Online Simulator），可模擬 <strong>CPU Scheduling、Real-Time Scheduling、Deadlock、Page Replacement、Disk Scheduling</strong>，可以註冊帳號或以訪客身分使用。本章作業的「實驗組」會用到它。</p>
+</blockquote>
+<h3>四種評估方法比較</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>準確度</th>
+<th>成本</th>
+<th>特點</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Deterministic modeling</td>
+<td>只對特定輸入準確</td>
+<td><strong>最低</strong></td>
+<td>簡單快速，適合教學範例</td>
+</tr>
+<tr>
+<td>Queueing models</td>
+<td>取決於分布是否貼近現實</td>
+<td>低</td>
+<td>數學分析，但假設常不切實際</td>
+</tr>
+<tr>
+<td>Simulations</td>
+<td><strong>較準確</strong></td>
+<td>中到高</td>
+<td>可用 trace tape 重現真實負載</td>
+</tr>
+<tr>
+<td>Implementation</td>
+<td><strong>完全準確</strong></td>
+<td><strong>最高</strong></td>
+<td>真實環境測試</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2 id="c5-s10">重點整理</h2>
+<h3>排程演算法總表</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>演算法</th>
+<th>選誰</th>
+<th>可搶占？</th>
+<th>優點</th>
+<th>缺點</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>FCFS</strong></td>
+<td>先到的</td>
+<td>否</td>
+<td>簡單</td>
+<td>平均等待時間可能很長；<strong>convoy effect</strong></td>
+</tr>
+<tr>
+<td><strong>SJF</strong></td>
+<td>下一次 CPU burst 最短的</td>
+<td>兩種皆有</td>
+<td>平均等待時間<strong>最小（最佳）</strong></td>
+<td>無法得知下一次 burst 長度，只能預測；長工作可能 starvation</td>
+</tr>
+<tr>
+<td><strong>SRTF</strong></td>
+<td>剩餘時間最短的</td>
+<td>是</td>
+<td>SJF 的搶占版</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><strong>Priority</strong></td>
+<td>優先權最高的</td>
+<td>兩種皆有</td>
+<td>彈性</td>
+<td><strong>Starvation</strong> → 用 <strong>aging</strong> 解決</td>
+</tr>
+<tr>
+<td><strong>RR</strong></td>
+<td>輪流，每人一個 quantum</td>
+<td>是</td>
+<td><strong>回應時間好</strong>，適合 time-sharing</td>
+<td>平均 turnaround 通常比 SJF 高；效能取決於 q</td>
+</tr>
+<tr>
+<td><strong>Multilevel queue</strong></td>
+<td>依佇列優先權；各佇列各自的演算法</td>
+<td>是</td>
+<td>不同類型 process 用不同策略</td>
+<td>Process 不能換佇列；可能 starvation</td>
+</tr>
+<tr>
+<td><strong>Multilevel feedback queue</strong></td>
+<td>同上，但 process 可升降級</td>
+<td>是</td>
+<td><strong>最通用</strong></td>
+<td><strong>最複雜</strong>，參數多</td>
+</tr>
+<tr>
+<td><strong>RMS</strong></td>
+<td>週期最短的（靜態）</td>
+<td>是</td>
+<td>靜態優先權中最佳</td>
+<td>使用率上限 N(2^(1/N) − 1)</td>
+</tr>
+<tr>
+<td><strong>EDF</strong></td>
+<td>deadline 最早的（動態）</td>
+<td>是</td>
+<td>理論上可達 100% 使用率</td>
+<td>實際上有 context switch 成本</td>
+</tr>
+</tbody></table></div>
+<h3>計算題 SOP（<span class="tg tg-x">補充</span>整理）</h3>
+<ol>
+<li>依到達時間與規則畫出 <strong>Gantt chart</strong>。<ul>
+<li>Nonpreemptive：只在<strong>有 process 完成時</strong>重新選。</li>
+<li>Preemptive：<strong>有 process 到達時</strong>也要重新比較。</li>
+</ul>
+</li>
+<li>從 Gantt chart 讀出每個 process 的 <strong>completion time</strong>。</li>
+<li><strong>Turnaround = Completion − Arrival</strong></li>
+<li><strong>Waiting = Turnaround − Burst</strong></li>
+<li>平均等待時間 = 所有 waiting 的總和 ÷ process 數。</li>
+</ol>
+<h3>本章投影片範例答案速查</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>範例</th>
+<th>演算法</th>
+<th>平均等待時間</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1 24、P2 3、P3 3（P1 先到）</td>
+<td>FCFS</td>
+<td>17</td>
+</tr>
+<tr>
+<td>同上（P2、P3 先到）</td>
+<td>FCFS</td>
+<td>3</td>
+</tr>
+<tr>
+<td>6、8、7、3</td>
+<td>SJF</td>
+<td>7</td>
+</tr>
+<tr>
+<td>到達 0/2/4/5，burst 7/4/1/4</td>
+<td>Nonpreemptive SJF</td>
+<td>4</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>Preemptive SJF</td>
+<td>3</td>
+</tr>
+<tr>
+<td>到達 0/1/2/3，burst 8/4/9/5</td>
+<td>SRTF</td>
+<td>6.5</td>
+</tr>
+<tr>
+<td>burst 10/1/2/1/5，priority 3/1/4/5/2</td>
+<td>Nonpreemptive priority</td>
+<td>8.2</td>
+</tr>
+<tr>
+<td>burst 10/29/3/7/12</td>
+<td>FCFS／SJF／RR(q=10)</td>
+<td>28／13／23</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2 id="c5-s11">容易混淆的觀念對照</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>比較</th>
+<th>A</th>
+<th>B</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>CPU scheduler vs. Dispatcher</strong></td>
+<td><strong>決定</strong>下一個執行誰</td>
+<td><strong>執行</strong>切換（context switch、切回 user mode、跳到程式位置）</td>
+</tr>
+<tr>
+<td><strong>Preemptive vs. Nonpreemptive</strong></td>
+<td>在 4 種情況（甚至 5 種）都可能排程，可以把執行中的 process 換掉</td>
+<td>只在 running → waiting 與 terminate 時排程</td>
+</tr>
+<tr>
+<td><strong>I/O-bound vs. CPU-bound</strong></td>
+<td>很多短的 CPU burst</td>
+<td>少數長的 CPU burst</td>
+</tr>
+<tr>
+<td><strong>Turnaround vs. Waiting vs. Response time</strong></td>
+<td>送出到<strong>完成</strong></td>
+<td>在 <strong>ready queue</strong> 等的總時間</td>
+</tr>
+<tr>
+<td><strong>SJF vs. SRTF</strong></td>
+<td>不可搶占；一次跑完整個 burst</td>
+<td>可搶占；比的是<strong>剩餘</strong>時間</td>
+</tr>
+<tr>
+<td><strong>External vs. Internal priority</strong></td>
+<td>外部因素（重要性、付費）</td>
+<td>可量測的數值（時間限制、記憶體需求）</td>
+</tr>
+<tr>
+<td><strong>Starvation vs. Aging</strong></td>
+<td>問題：低優先權永遠等不到</td>
+<td>解法：等越久優先權越高</td>
+</tr>
+<tr>
+<td><strong>Multilevel queue vs. MLFQ</strong></td>
+<td>Process 永久固定在一個佇列</td>
+<td>Process 可依行為升降級</td>
+</tr>
+<tr>
+<td><strong>Fixed-priority vs. Time slice among queues</strong></td>
+<td>高優先權佇列空了才輪到低的</td>
+<td>依比例分配 CPU 時間（如 80% / 20%）</td>
+</tr>
+<tr>
+<td><strong>PCS vs. SCS</strong></td>
+<td>Thread library 排程；同 process 內競爭</td>
+<td>Kernel 排程；全系統競爭</td>
+</tr>
+<tr>
+<td><strong>Asymmetric vs. Symmetric multiprocessing</strong></td>
+<td>一個 master 處理系統活動</td>
+<td>每個處理器自己排程</td>
+</tr>
+<tr>
+<td><strong>Homogeneous vs. Heterogeneous</strong></td>
+<td>處理器功能相同</td>
+<td>處理器能力不同</td>
+</tr>
+<tr>
+<td><strong>Common vs. Private ready queue</strong></td>
+<td>不需 load balancing，但有存取衝突</td>
+<td>需要 load balancing，cache 利用較好</td>
+</tr>
+<tr>
+<td><strong>Push vs. Pull migration</strong></td>
+<td>定期檢查，把工作從忙的推給閒的</td>
+<td>閒的處理器自己去拉工作</td>
+</tr>
+<tr>
+<td><strong>Soft vs. Hard affinity</strong></td>
+<td>盡量留在同一處理器，不保證</td>
+<td>用 system call 指定只能在哪些處理器上跑</td>
+</tr>
+<tr>
+<td><strong>Physical core vs. Logical processor</strong></td>
+<td>實體運算單元</td>
+<td>每個 hardware thread 對 OS 都是一個 logical processor</td>
+</tr>
+<tr>
+<td><strong>Soft vs. Hard real-time</strong></td>
+<td>只保證優先於非關鍵 process</td>
+<td>必須在 deadline 前完成</td>
+</tr>
+<tr>
+<td><strong>Interrupt latency vs. Dispatch latency</strong></td>
+<td>中斷到達 → ISR 開始</td>
+<td>停止一個 process → 開始另一個</td>
+</tr>
+<tr>
+<td><strong>RMS vs. EDF</strong></td>
+<td>靜態優先權，週期越短越高</td>
+<td>動態優先權，deadline 越早越高</td>
+</tr>
+<tr>
+<td><strong><code>SCHED_FIFO</code> vs. <code>SCHED_RR</code></strong></td>
+<td>同優先權不輪流</td>
+<td>同優先權用 time-slicing 輪流</td>
+</tr>
+<tr>
+<td><strong>O(1) scheduler vs. CFS</strong></td>
+<td>Linux 2.5：active／expired 兩個 array</td>
+<td>Linux 2.6.23+：依 vruntime，紅黑樹</td>
+</tr>
+<tr>
+<td><strong>Linux nice vs. Windows priority</strong></td>
+<td>數字<strong>越小</strong>優先權越高</td>
+<td>數字<strong>越大</strong>優先權越高</td>
+</tr>
+<tr>
+<td><strong>Distribution-driven vs. Trace tape</strong></td>
+<td>隨機產生資料</td>
+<td>用真實系統的紀錄</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2 id="c5-s12">作業（Homework）</h2>
+<h3>課本習題（10th edition）</h3>
+<p><strong>Ex 5.3、5.4、5.5、5.17、5.18、5.35</strong>（投影片上 <strong>5.4</strong> 與 <strong>5.35</strong> 有特別圈起來）</p>
+<ul>
+<li><strong>(Ex. 5.4)</strong> 畫出排程的 Gantt chart，算出每個 process 的 waiting time 與平均 waiting time。</li>
+<li><strong>(Ex. 5.35)</strong> 畫出即時排程的 Gantt chart。</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>組別</th>
+<th>繳交方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>對照組</strong></td>
+<td>繳交<strong>手寫</strong>作業</td>
+</tr>
+<tr>
+<td><strong>實驗組</strong></td>
+<td>使用 <strong>OS Simulator</strong>（<a href="http://ossim.im.ncnu.edu.tw/" target="_blank" rel="noopener">http://ossim.im.ncnu.edu.tw/</a>），用<strong>自己的帳號</strong>，繳交<strong>執行結果螢幕截圖</strong></td>
+</tr>
+</tbody></table></div>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片</span> 投影片附的 <strong>Ex. 5.4</strong> 題目：
+Consider the following set of processes, with the length of the CPU burst time given in milliseconds:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Burst Time</th>
+<th>Priority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>8</td>
+<td>4</td>
+</tr>
+<tr>
+<td>P4</td>
+<td>4</td>
+<td>2</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>5</td>
+<td>3</td>
+</tr>
+</tbody></table></div>
+<p>The processes are assumed to have arrived in the order P1, P2, P3, P4, P5, all at time 0.</p>
+<ul>
+<li>a. Draw four Gantt charts that illustrate the execution of these processes using the following scheduling algorithms: <strong>FCFS, SJF, nonpreemptive priority（a larger priority number implies a higher priority）, and RR（quantum = 2）</strong>.</li>
+<li>b. What is the turnaround time of each process for each of the scheduling algorithms in part a?</li>
+<li>c. What is the waiting time of each process for each of these scheduling algorithms?</li>
+<li>d. Which of the algorithms results in the minimum average waiting time (over all processes)?</li>
+</ul>
+<p><span class="tg tg-w">留意</span> 注意這題的 priority 是「<strong>數字越大優先權越高</strong>」，和投影片 5.3.4 例子（數字越小越高）<strong>相反</strong>。</p>
+</blockquote>
+<blockquote class="bq-s">
+<p><span class="tg tg-s">投影片</span> 投影片附的 <strong>Ex. 5.35</strong> 題目：
+Consider two processes, P1 and P2, where <strong>p1 = 50, t1 = 25, p2 = 75, and t2 = 30</strong>.</p>
+<ul>
+<li>a. Can these two processes be scheduled using <strong>rate-monotonic scheduling</strong>? Illustrate your answer using a Gantt chart such as the ones in Figure 5.21–Figure 5.24.</li>
+<li>b. Illustrate the scheduling of these two processes using <strong>earliest-deadline-first (EDF)</strong> scheduling.</li>
+</ul>
+</blockquote>
+<p>→ 複習本筆記 5.3 的各演算法範例與 計算題 SOP；Ex. 5.35 參考 5.6.3 RMS 與 5.6.4 EDF 的投影片例子（注意這題的 p2 是 75，不是 80）。</p>
+<h3>加分題</h3>
+<p><strong>Write a simulation program to implement preemptive CPU scheduling algorithms.</strong>（寫一個模擬程式，實作可搶占的 CPU 排程演算法。）</p>
+<ul>
+<li>參考 <strong>5.8.3 Simulations</strong> 的投影片（本筆記 5.8.3）。</li>
+</ul>
+<p><strong>注意</strong>：</p>
+<ol>
+<li>請印出<strong>執行結果畫面</strong> &amp; 交<strong>原始程式</strong></li>
+<li>請找 <strong>TA Demo</strong>（<strong>沒有 Demo 不給分</strong>）</li>
+</ol>
+<hr>
+
+</article>
 
       </div>
     </div>
@@ -7991,7 +10655,7 @@ void *runner(void *param) {
   <!-- 詞彙表 -->
   <section id="v-glossary" data-view="glossary" hidden>
     <h1 class="view-title">英中詞彙表</h1>
-    <p class="lede">四章的專有名詞。可以用英文或中文搜尋。</p>
+    <p class="lede">各章的專有名詞。可以用英文或中文搜尋。</p>
     <div class="controls">
       <label class="field" for="g-search"><span>搜尋</span><input type="search" id="g-search" placeholder="例如 context switch、排程"></label>
       <div class="field"><span>章節</span><div class="chips" id="g-ch" role="group" aria-label="章節"></div></div>
@@ -8002,7 +10666,7 @@ void *runner(void *param) {
 </main>
 
 <script>
-const DATA = {"chapters":[{"n":1,"zh":"導論","en":"Introduction","sections":15},{"n":2,"zh":"作業系統結構","en":"Operating-System Structures","sections":14},{"n":3,"zh":"行程","en":"Processes","sections":12},{"n":4,"zh":"執行緒與並行","en":"Threads & Concurrency","sections":11}],"terms":[{"c":1,"en":"access control","zh":"存取控制","n":""},{"c":1,"en":"accounting","zh":"記帳／使用紀錄","n":""},{"c":1,"en":"active entity","zh":"主動實體","n":"指 process"},{"c":1,"en":"allocation / deallocation","zh":"配置／釋放","n":""},{"c":1,"en":"application program","zh":"應用程式","n":""},{"c":1,"en":"asymmetric clustering","zh":"非對稱叢集","n":"一台 hot-standby"},{"c":1,"en":"asymmetric multiprocessing","zh":"非對稱式多處理","n":"boss–worker"},{"c":1,"en":"augmented reality (AR)","zh":"擴增實境","n":""},{"c":1,"en":"authorization","zh":"授權","n":""},{"c":1,"en":"autonomous","zh":"自主的","n":""},{"c":1,"en":"availability","zh":"可用性","n":"投影片譯「可利用性」"},{"c":1,"en":"balanced binary search tree","zh":"平衡二元搜尋樹","n":""},{"c":1,"en":"binary search tree","zh":"二元搜尋樹","n":""},{"c":1,"en":"bitmap","zh":"位元圖","n":""},{"c":1,"en":"blurred","zh":"模糊的","n":""},{"c":1,"en":"bootstrap program","zh":"啟動程式","n":"存於 ROM / EEPROM"},{"c":1,"en":"buffer / buffering","zh":"緩衝區／緩衝","n":""},{"c":1,"en":"bus","zh":"匯流排","n":""},{"c":1,"en":"cache / caching","zh":"快取","n":""},{"c":1,"en":"cache coherency","zh":"快取一致性","n":"投影片譯「統一；連貫性」"},{"c":1,"en":"CLI (Command Line Interface)","zh":"命令列介面","n":""},{"c":1,"en":"client-server","zh":"主從式","n":""},{"c":1,"en":"cloud computing","zh":"雲端運算","n":""},{"c":1,"en":"clustered system","zh":"叢集系統","n":""},{"c":1,"en":"command interpreter","zh":"命令直譯器","n":"即 shell"},{"c":1,"en":"concurrency / concurrent","zh":"並行（同時發生）","n":""},{"c":1,"en":"contiguous allocation","zh":"連續配置","n":""},{"c":1,"en":"control program","zh":"控制程式","n":""},{"c":1,"en":"core","zh":"核心（CPU 運算核心）","n":"注意與 kernel 區分"},{"c":1,"en":"CPU scheduling","zh":"CPU 排程","n":""},{"c":1,"en":"CPU utilization","zh":"CPU 使用率","n":""},{"c":1,"en":"deadlock","zh":"死結","n":""},{"c":1,"en":"denial-of-service (DoS)","zh":"阻斷服務","n":""},{"c":1,"en":"device controller","zh":"裝置控制器","n":"硬體"},{"c":1,"en":"device driver","zh":"裝置驅動程式","n":"軟體"},{"c":1,"en":"directory","zh":"目錄","n":""},{"c":1,"en":"dispatch table","zh":"分派表","n":""},{"c":1,"en":"distributed system","zh":"分散式系統","n":""},{"c":1,"en":"DLM (Distributed Lock Manager)","zh":"分散式鎖管理器","n":""},{"c":1,"en":"DMA (Direct Memory Access)","zh":"直接記憶體存取","n":""},{"c":1,"en":"dual-mode operation","zh":"雙模式運作","n":""},{"c":1,"en":"embedded system","zh":"嵌入式系統","n":""},{"c":1,"en":"emulation / emulator","zh":"模擬／模擬器","n":""},{"c":1,"en":"errant","zh":"出錯的","n":"投影片譯「走入歧途的」"},{"c":1,"en":"exception","zh":"例外","n":"同 trap"},{"c":1,"en":"exploration","zh":"探究","n":""},{"c":1,"en":"fault-tolerant","zh":"容錯","n":""},{"c":1,"en":"FIFO (First In, First Out)","zh":"先進先出","n":"queue"},{"c":1,"en":"firewall","zh":"防火牆","n":""},{"c":1,"en":"firmware","zh":"韌體","n":""},{"c":1,"en":"free software","zh":"自由軟體","n":""},{"c":1,"en":"freeware","zh":"免費軟體","n":""},{"c":1,"en":"GPL (General Public License)","zh":"通用公共授權","n":""},{"c":1,"en":"graceful degradation","zh":"優雅降級","n":""},{"c":1,"en":"guest OS","zh":"客體作業系統","n":""},{"c":1,"en":"GUI (Graphical User Interface)","zh":"圖形使用者介面","n":""},{"c":1,"en":"gyroscope","zh":"陀螺儀","n":""},{"c":1,"en":"hash collision","zh":"雜湊碰撞","n":""},{"c":1,"en":"hash function / hash map","zh":"雜湊函式／雜湊表","n":""},{"c":1,"en":"heterogeneous","zh":"異質的","n":""},{"c":1,"en":"high availability","zh":"高可用性","n":""},{"c":1,"en":"hinge on","zh":"取決於","n":""},{"c":1,"en":"host OS","zh":"主機作業系統","n":""},{"c":1,"en":"hot-standby","zh":"熱待機","n":""},{"c":1,"en":"HPC (High-Performance Computing)","zh":"高效能運算","n":""},{"c":1,"en":"hypervisor","zh":"虛擬機器管理程式","n":"同 VMM"},{"c":1,"en":"IaaS","zh":"基礎設施即服務","n":""},{"c":1,"en":"illusion","zh":"錯覺","n":""},{"c":1,"en":"intermediary","zh":"中介者","n":""},{"c":1,"en":"interrupt","zh":"中斷","n":""},{"c":1,"en":"interrupt-driven","zh":"中斷驅動","n":""},{"c":1,"en":"interrupt vector","zh":"中斷向量","n":""},{"c":1,"en":"ISR (Interrupt Service Routine)","zh":"中斷服務常式","n":""},{"c":1,"en":"job scheduling","zh":"工作排程","n":""},{"c":1,"en":"kernel","zh":"核心","n":"OS 的核心程式"},{"c":1,"en":"kernel mode","zh":"核心模式","n":"mode bit = 0"},{"c":1,"en":"LIFO (Last In, First Out)","zh":"後進先出","n":"stack"},{"c":1,"en":"linked list","zh":"鏈結串列","n":""},{"c":1,"en":"load balancer","zh":"負載平衡器","n":""},{"c":1,"en":"malicious","zh":"惡意的","n":""},{"c":1,"en":"maskable interrupt","zh":"可遮罩中斷","n":""},{"c":1,"en":"mass storage","zh":"大量儲存","n":""},{"c":1,"en":"middleware","zh":"中介軟體","n":""},{"c":1,"en":"mode bit","zh":"模式位元","n":""},{"c":1,"en":"mounting / unmounting","zh":"掛載／卸載","n":""},{"c":1,"en":"multicore","zh":"多核心","n":""},{"c":1,"en":"multiprocessor system","zh":"多處理器系統","n":""},{"c":1,"en":"multiprogramming","zh":"多元程式","n":""},{"c":1,"en":"multitasking","zh":"多工","n":""},{"c":1,"en":"nonvolatile","zh":"非揮發性","n":""},{"c":1,"en":"NUMA","zh":"非一致記憶體存取","n":""},{"c":1,"en":"NVM (Non-Volatile Memory)","zh":"非揮發性記憶體","n":""},{"c":1,"en":"open-source","zh":"開放原始碼","n":""},{"c":1,"en":"PaaS","zh":"平台即服務","n":""},{"c":1,"en":"paging","zh":"分頁","n":""},{"c":1,"en":"parallelization","zh":"平行化","n":""},{"c":1,"en":"partitioning","zh":"分割","n":""},{"c":1,"en":"passive entity","zh":"被動實體","n":"指 program"},{"c":1,"en":"peculiarities","zh":"特殊性","n":"投影片譯「奇特、特性」"},{"c":1,"en":"peer-to-peer (P2P)","zh":"對等式","n":""},{"c":1,"en":"peripheral device","zh":"周邊裝置","n":""},{"c":1,"en":"placement problem","zh":"放置問題","n":""},{"c":1,"en":"primitives","zh":"基本操作","n":""},{"c":1,"en":"privilege escalation","zh":"權限提升","n":"投影片譯 escalation「逐步擴大」"},{"c":1,"en":"privileged instruction","zh":"特權指令","n":""},{"c":1,"en":"privileged mode","zh":"特權模式","n":"同 kernel mode"},{"c":1,"en":"process","zh":"行程","n":""},{"c":1,"en":"program counter","zh":"程式計數器","n":""},{"c":1,"en":"protection","zh":"保護","n":""},{"c":1,"en":"protection rings","zh":"保護環","n":""},{"c":1,"en":"queue","zh":"佇列","n":""},{"c":1,"en":"real-time system","zh":"即時系統","n":""},{"c":1,"en":"reclamation","zh":"回收利用","n":""},{"c":1,"en":"red-black tree","zh":"紅黑樹","n":""},{"c":1,"en":"register","zh":"暫存器","n":""},{"c":1,"en":"reliability","zh":"可靠度","n":""},{"c":1,"en":"replacement problem / policy","zh":"置換問題／策略","n":""},{"c":1,"en":"replica","zh":"複本","n":""},{"c":1,"en":"resource allocator","zh":"資源分配者","n":""},{"c":1,"en":"response time","zh":"回應時間","n":""},{"c":1,"en":"SaaS","zh":"軟體即服務","n":""},{"c":1,"en":"SAN (Storage-Area Network)","zh":"儲存區域網路","n":""},{"c":1,"en":"secondary storage","zh":"輔助儲存","n":""},{"c":1,"en":"security","zh":"安全","n":""},{"c":1,"en":"segmentation","zh":"分段","n":""},{"c":1,"en":"sequential / random access","zh":"循序／隨機存取","n":""},{"c":1,"en":"shell","zh":"殼層","n":""},{"c":1,"en":"shuffling","zh":"輪替","n":"投影片譯「洗牌」"},{"c":1,"en":"SMP (Symmetric Multiprocessing)","zh":"對稱式多處理","n":""},{"c":1,"en":"spooling","zh":"排存","n":""},{"c":1,"en":"stack","zh":"堆疊","n":""},{"c":1,"en":"stand-alone","zh":"獨立運作","n":""},{"c":1,"en":"supervisor mode","zh":"監督模式","n":"同 kernel mode"},{"c":1,"en":"surviving","zh":"存活的","n":""},{"c":1,"en":"symmetric clustering","zh":"對稱叢集","n":""},{"c":1,"en":"synchronization","zh":"同步","n":""},{"c":1,"en":"system call","zh":"系統呼叫","n":"也稱 monitor call"},{"c":1,"en":"system program","zh":"系統程式","n":""},{"c":1,"en":"tertiary storage","zh":"第三級儲存","n":"光碟、磁帶"},{"c":1,"en":"thin client","zh":"精簡型用戶端","n":""},{"c":1,"en":"thread","zh":"執行緒","n":""},{"c":1,"en":"throughput","zh":"產能／吞吐量","n":""},{"c":1,"en":"time slice","zh":"時間片","n":""},{"c":1,"en":"time-sharing","zh":"分時","n":""},{"c":1,"en":"timer","zh":"計時器","n":""},{"c":1,"en":"trap","zh":"陷阱","n":"軟體產生的中斷"},{"c":1,"en":"ubiquitous","zh":"無所不在的","n":""},{"c":1,"en":"UMA","zh":"一致記憶體存取","n":""},{"c":1,"en":"user mode","zh":"使用者模式","n":"mode bit = 1"},{"c":1,"en":"virtual machine (VM)","zh":"虛擬機器","n":""},{"c":1,"en":"virtual memory","zh":"虛擬記憶體","n":""},{"c":1,"en":"virtualization","zh":"虛擬化","n":""},{"c":1,"en":"VMM (Virtual Machine Manager)","zh":"虛擬機器管理員","n":""},{"c":1,"en":"VoIP (Voice over IP)","zh":"網路語音","n":""},{"c":1,"en":"volatile / volatility","zh":"揮發性","n":""},{"c":2,"en":"abort","zh":"中止","n":"異常結束"},{"c":2,"en":"address space","zh":"位址空間","n":""},{"c":2,"en":"API (Application Program Interface)","zh":"應用程式介面","n":""},{"c":2,"en":"ART (Android RunTime)","zh":"Android 執行環境","n":"Android 的 VM"},{"c":2,"en":"assembler","zh":"組譯器","n":""},{"c":2,"en":"assembly language","zh":"組合語言","n":""},{"c":2,"en":"authentication","zh":"認證","n":""},{"c":2,"en":"background service","zh":"背景服務","n":""},{"c":2,"en":"BCC (BPF Compiler Collection)","zh":"BPF 編譯器集合","n":"Linux 追蹤工具組"},{"c":2,"en":"BIOS","zh":"基本輸入輸出系統","n":""},{"c":2,"en":"boot block","zh":"開機區塊","n":""},{"c":2,"en":"boot loader / bootstrap program","zh":"開機載入器／啟動程式","n":""},{"c":2,"en":"booting","zh":"開機","n":""},{"c":2,"en":"bottleneck","zh":"瓶頸","n":""},{"c":2,"en":"built-in command","zh":"內建命令","n":""},{"c":2,"en":"bytecode","zh":"位元組碼","n":""},{"c":2,"en":"CLI (Command-Line Interface)","zh":"命令列介面","n":""},{"c":2,"en":"command interpreter","zh":"命令直譯器","n":"即 shell"},{"c":2,"en":"compiler","zh":"編譯器","n":""},{"c":2,"en":"core dump","zh":"核心傾印","n":"應用程式失敗"},{"c":2,"en":"crash dump","zh":"當機傾印","n":"OS 失敗"},{"c":2,"en":"daemon","zh":"常駐程式","n":""},{"c":2,"en":"debugger / debugging","zh":"除錯器／除錯","n":""},{"c":2,"en":"desktop metaphor","zh":"桌面隱喻","n":""},{"c":2,"en":"dispatch table","zh":"分派表","n":""},{"c":2,"en":"DLL (Dynamically Linked Library)","zh":"動態連結函式庫","n":""},{"c":2,"en":"dump","zh":"傾印","n":""},{"c":2,"en":"ELF (Executable and Linking Format)","zh":"可執行與連結格式","n":""},{"c":2,"en":"error detection","zh":"錯誤偵測","n":""},{"c":2,"en":"executable file","zh":"可執行檔","n":""},{"c":2,"en":"file descriptor","zh":"檔案描述子","n":""},{"c":2,"en":"gesture","zh":"手勢","n":""},{"c":2,"en":"GRUB (Grand Unified Bootloader)","zh":"—","n":"Linux 的開機載入器"},{"c":2,"en":"GUI (Graphical User Interface)","zh":"圖形使用者介面","n":""},{"c":2,"en":"HAL (Hardware Abstraction Layer)","zh":"硬體抽象層","n":""},{"c":2,"en":"hybrid system","zh":"混合式系統","n":""},{"c":2,"en":"IDT (Interrupt Descriptor Table)","zh":"中斷描述表","n":""},{"c":2,"en":"instrument","zh":"插入探測","n":""},{"c":2,"en":"intercept","zh":"攔截","n":""},{"c":2,"en":"interaction","zh":"互動","n":"投影片譯「互相影響」"},{"c":2,"en":"interpreter","zh":"直譯器","n":""},{"c":2,"en":"IPC (Interprocess Communication)","zh":"行程間通訊","n":""},{"c":2,"en":"JNI (Java Native Interface)","zh":"Java 原生介面","n":""},{"c":2,"en":"JVM (Java Virtual Machine)","zh":"Java 虛擬機器","n":""},{"c":2,"en":"kext (kernel extension)","zh":"核心擴充","n":"macOS 的可載入模組"},{"c":2,"en":"layered approach","zh":"分層式","n":""},{"c":2,"en":"library call","zh":"函式庫呼叫","n":""},{"c":2,"en":"linker","zh":"連結器","n":""},{"c":2,"en":"LKM (Loadable Kernel Module)","zh":"可載入核心模組","n":""},{"c":2,"en":"loader","zh":"載入器","n":""},{"c":2,"en":"lock","zh":"鎖","n":""},{"c":2,"en":"log file / logging","zh":"紀錄檔／紀錄","n":""},{"c":2,"en":"mailbox","zh":"信箱","n":""},{"c":2,"en":"mechanism","zh":"機制","n":"決定 how"},{"c":2,"en":"meld","zh":"融合","n":"投影片譯「使合併；使結合」"},{"c":2,"en":"message passing","zh":"訊息傳遞","n":""},{"c":2,"en":"message queue","zh":"訊息佇列","n":""},{"c":2,"en":"microkernel","zh":"微核心","n":""},{"c":2,"en":"modularity / module","zh":"模組化／模組","n":""},{"c":2,"en":"monolithic","zh":"單體式","n":"投影片譯「獨塊巨石的、整體的、龐大的」"},{"c":2,"en":"mount","zh":"掛載","n":""},{"c":2,"en":"multistage boot","zh":"多階段開機","n":""},{"c":2,"en":"object file","zh":"目的檔","n":""},{"c":2,"en":"overhead","zh":"額外負擔","n":""},{"c":2,"en":"parameter","zh":"參數","n":""},{"c":2,"en":"performance tuning","zh":"效能調校","n":""},{"c":2,"en":"policy","zh":"策略","n":"決定 what"},{"c":2,"en":"port / portability","zh":"移植／可攜性","n":""},{"c":2,"en":"POSIX","zh":"可攜式作業系統介面","n":""},{"c":2,"en":"primitives","zh":"基本操作","n":""},{"c":2,"en":"probe","zh":"探測","n":""},{"c":2,"en":"profiling","zh":"剖析","n":""},{"c":2,"en":"protection","zh":"保護","n":""},{"c":2,"en":"reliability","zh":"可靠度","n":"投影片譯「可靠程度」"},{"c":2,"en":"relocatable object file","zh":"可重定位目的檔","n":""},{"c":2,"en":"relocation","zh":"重定位","n":""},{"c":2,"en":"reposition","zh":"重新定位（讀寫位置）","n":""},{"c":2,"en":"resource allocation","zh":"資源分配","n":""},{"c":2,"en":"root file system","zh":"根檔案系統","n":""},{"c":2,"en":"RTE (Run-Time Environment)","zh":"執行時期環境","n":""},{"c":2,"en":"service routine","zh":"服務常式","n":""},{"c":2,"en":"shared memory","zh":"共享記憶體","n":""},{"c":2,"en":"shell","zh":"殼層","n":""},{"c":2,"en":"sketch","zh":"—","n":"Arduino 程式"},{"c":2,"en":"software interrupt","zh":"軟體中斷","n":""},{"c":2,"en":"subsystem","zh":"子系統","n":""},{"c":2,"en":"synchronization","zh":"同步","n":"投影片譯「使同步、使協調」"},{"c":2,"en":"SYSGEN (System Generation)","zh":"系統生成","n":""},{"c":2,"en":"system call","zh":"系統呼叫","n":""},{"c":2,"en":"system-call interface","zh":"系統呼叫介面","n":""},{"c":2,"en":"system service / system utility","zh":"系統服務／系統公用程式","n":""},{"c":2,"en":"touch-screen interface","zh":"觸控螢幕介面","n":""},{"c":2,"en":"trace listing / tracing","zh":"追蹤列表／追蹤","n":""},{"c":2,"en":"UEFI","zh":"統一可延伸韌體介面","n":""},{"c":2,"en":"user authentication","zh":"使用者認證","n":""},{"c":2,"en":"vantage point","zh":"觀點","n":""},{"c":2,"en":"virtual keyboard","zh":"虛擬鍵盤","n":""},{"c":2,"en":"wrapper routine","zh":"包裝函式","n":""},{"c":3,"en":"accounting information","zh":"記帳資訊","n":""},{"c":3,"en":"address space","zh":"位址空間","n":""},{"c":3,"en":"ALPC (Advanced Local Procedure Call)","zh":"進階本地程序呼叫","n":"Windows 的訊息傳遞設施"},{"c":3,"en":"anonymous pipe","zh":"匿名管道","n":"Windows 的 ordinary pipe"},{"c":3,"en":"asynchronous","zh":"非同步","n":""},{"c":3,"en":"attach","zh":"附加","n":""},{"c":3,"en":"bidirectional","zh":"雙向","n":""},{"c":3,"en":"blocking / nonblocking","zh":"阻塞／非阻塞","n":""},{"c":3,"en":"bounded buffer","zh":"有限緩衝區","n":""},{"c":3,"en":"buffering","zh":"緩衝","n":""},{"c":3,"en":"callback","zh":"回呼","n":""},{"c":3,"en":"cascading termination","zh":"連鎖終止","n":"投影片譯「層疊式的」"},{"c":3,"en":"child process","zh":"子行程","n":""},{"c":3,"en":"communication link","zh":"通訊鏈結","n":""},{"c":3,"en":"conduit","zh":"導管","n":""},{"c":3,"en":"consumer","zh":"消費者","n":""},{"c":3,"en":"context / context switch","zh":"內容／內容切換","n":"也譯「上下文切換」"},{"c":3,"en":"cooperating process","zh":"合作行程","n":""},{"c":3,"en":"copy-on-write","zh":"寫入時複製","n":""},{"c":3,"en":"CPU scheduler","zh":"CPU 排程器","n":""},{"c":3,"en":"data section","zh":"資料區段","n":"全域變數"},{"c":3,"en":"deallocate","zh":"回收／釋放","n":""},{"c":3,"en":"degree of multiprogramming","zh":"多元程式度","n":"記憶體中 process 的數量"},{"c":3,"en":"direct / indirect communication","zh":"直接／間接通訊","n":""},{"c":3,"en":"dispatch","zh":"分派","n":""},{"c":3,"en":"duplicate","zh":"複製品","n":""},{"c":3,"en":"endpoint","zh":"端點","n":""},{"c":3,"en":"entry point","zh":"進入點","n":""},{"c":3,"en":"executable image","zh":"可執行映像檔","n":""},{"c":3,"en":"fetch / decode / execute","zh":"擷取／解碼／執行","n":""},{"c":3,"en":"FIFO","zh":"先進先出","n":"UNIX 的 named pipe 也叫 FIFO"},{"c":3,"en":"full duplex / half duplex","zh":"全雙工／半雙工","n":""},{"c":3,"en":"global variable","zh":"全域變數","n":""},{"c":3,"en":"handle","zh":"控制代碼","n":""},{"c":3,"en":"header","zh":"標頭","n":""},{"c":3,"en":"heap","zh":"堆積","n":"動態配置"},{"c":3,"en":"independent process","zh":"獨立行程","n":""},{"c":3,"en":"IPC (Interprocess Communication)","zh":"行程間通訊","n":""},{"c":3,"en":"loading","zh":"載入","n":""},{"c":3,"en":"local variable","zh":"區域變數","n":""},{"c":3,"en":"localhost","zh":"本機","n":"127.0.0.1"},{"c":3,"en":"mailbox","zh":"信箱","n":""},{"c":3,"en":"marshal / unmarshal","zh":"封送／解封送","n":"打包／解開參數"},{"c":3,"en":"matchmaker","zh":"媒合者","n":""},{"c":3,"en":"memory-mapped file","zh":"記憶體映射檔","n":""},{"c":3,"en":"message passing","zh":"訊息傳遞","n":""},{"c":3,"en":"migrate","zh":"遷移","n":""},{"c":3,"en":"named pipe","zh":"具名管道","n":""},{"c":3,"en":"ordinary pipe","zh":"普通管道","n":""},{"c":3,"en":"orphan process","zh":"孤兒行程","n":""},{"c":3,"en":"overcommitted","zh":"過度配置","n":""},{"c":3,"en":"overhead","zh":"額外負擔","n":""},{"c":3,"en":"paradigm","zh":"典範","n":"投影片譯「範例」"},{"c":3,"en":"parallel computing","zh":"平行運算","n":""},{"c":3,"en":"parameter","zh":"參數","n":""},{"c":3,"en":"parent process","zh":"父行程","n":""},{"c":3,"en":"PCB (Process Control Block)","zh":"行程控制區塊","n":"也稱 task control block"},{"c":3,"en":"pid (process identifier)","zh":"行程識別碼","n":""},{"c":3,"en":"pipe","zh":"管道","n":""},{"c":3,"en":"port","zh":"埠","n":"Mach／Windows 的 mailbox；也指網路埠號"},{"c":3,"en":"priority","zh":"優先權","n":""},{"c":3,"en":"process","zh":"行程","n":""},{"c":3,"en":"process scheduler","zh":"行程排程器","n":""},{"c":3,"en":"process state","zh":"行程狀態","n":""},{"c":3,"en":"producer","zh":"生產者","n":""},{"c":3,"en":"program counter (PC)","zh":"程式計數器","n":""},{"c":3,"en":"proxy","zh":"代理","n":""},{"c":3,"en":"ready queue","zh":"就緒佇列","n":""},{"c":3,"en":"register","zh":"暫存器","n":""},{"c":3,"en":"rendezvous","zh":"會合","n":"投影片譯「約會、集會」"},{"c":3,"en":"return address","zh":"返回位址","n":""},{"c":3,"en":"RPC (Remote Procedure Call)","zh":"遠端程序呼叫","n":""},{"c":3,"en":"shared memory","zh":"共享記憶體","n":""},{"c":3,"en":"socket","zh":"通訊端","n":""},{"c":3,"en":"spawn","zh":"衍生","n":"投影片譯「生育」"},{"c":3,"en":"stack","zh":"堆疊","n":""},{"c":3,"en":"stack pointer (SP)","zh":"堆疊指標","n":""},{"c":3,"en":"stub","zh":"存根","n":""},{"c":3,"en":"subsystem","zh":"子系統","n":""},{"c":3,"en":"swap in / swap out","zh":"置入／置出","n":""},{"c":3,"en":"swapping","zh":"置換","n":""},{"c":3,"en":"synchronization","zh":"同步","n":""},{"c":3,"en":"synchronous","zh":"同步的","n":""},{"c":3,"en":"task","zh":"任務","n":"Mach 中類似 process"},{"c":3,"en":"text section","zh":"文字區段","n":"程式碼"},{"c":3,"en":"thread","zh":"執行緒","n":""},{"c":3,"en":"time slice","zh":"時間片","n":""},{"c":3,"en":"unbounded buffer","zh":"無限緩衝區","n":""},{"c":3,"en":"unidirectional","zh":"單向","n":""},{"c":3,"en":"wait queue","zh":"等待佇列","n":""},{"c":3,"en":"zombie process","zh":"殭屍行程","n":""},{"c":4,"en":"asynchronous cancellation","zh":"非同步取消","n":"立刻終止"},{"c":4,"en":"asynchronous signal","zh":"非同步訊號","n":"外部事件產生"},{"c":4,"en":"balance","zh":"平衡","n":""},{"c":4,"en":"block (GCD)","zh":"區塊","n":"`^{ }` 包起來的工作"},{"c":4,"en":"blocking system call","zh":"阻塞式系統呼叫","n":""},{"c":4,"en":"bound","zh":"綁定","n":""},{"c":4,"en":"Callable","zh":"—","n":"Java 介面，可回傳結果"},{"c":4,"en":"cancellation point","zh":"取消點","n":""},{"c":4,"en":"cleanup handler","zh":"清理處理常式","n":""},{"c":4,"en":"compiler directive","zh":"編譯器指示","n":"如 `#pragma`"},{"c":4,"en":"concurrency / concurrent","zh":"並行","n":"投影片譯「同時發生」"},{"c":4,"en":"confer","zh":"給予","n":""},{"c":4,"en":"context","zh":"內容","n":""},{"c":4,"en":"CPU-intensive","zh":"CPU 密集","n":""},{"c":4,"en":"data dependency","zh":"資料相依","n":""},{"c":4,"en":"data parallelism","zh":"資料平行","n":""},{"c":4,"en":"data splitting","zh":"資料分割","n":""},{"c":4,"en":"default signal handler","zh":"預設訊號處理常式","n":""},{"c":4,"en":"deferred cancellation","zh":"延遲取消","n":"預設類型"},{"c":4,"en":"dispatch queue","zh":"分派佇列","n":""},{"c":4,"en":"dividing activities","zh":"劃分活動","n":""},{"c":4,"en":"economy","zh":"經濟","n":""},{"c":4,"en":"ETHREAD","zh":"執行體執行緒區塊","n":"Windows，kernel space"},{"c":4,"en":"Executor","zh":"執行器","n":"Java 介面"},{"c":4,"en":"explicit threading","zh":"顯式執行緒","n":""},{"c":4,"en":"fork-join","zh":"分叉–合併","n":""},{"c":4,"en":"Future","zh":"—","n":"Java，代表尚未完成的結果"},{"c":4,"en":"GCD (Grand Central Dispatch)","zh":"—","n":"Apple 的技術"},{"c":4,"en":"green threads","zh":"綠色執行緒","n":"many-to-one 的例子"},{"c":4,"en":"implicit threading","zh":"隱式執行緒","n":"投影片譯「內含的」"},{"c":4,"en":"interleaved","zh":"交錯","n":""},{"c":4,"en":"intervention","zh":"介入","n":""},{"c":4,"en":"join","zh":"合併／等待結束","n":""},{"c":4,"en":"kernel thread","zh":"核心執行緒","n":""},{"c":4,"en":"KTHREAD","zh":"核心執行緒區塊","n":"Windows，kernel space"},{"c":4,"en":"LWP (Lightweight Process)","zh":"輕量級行程","n":""},{"c":4,"en":"main queue","zh":"主佇列","n":"GCD 的 serial queue"},{"c":4,"en":"main thread","zh":"主執行緒","n":""},{"c":4,"en":"many-to-many model","zh":"多對多模型","n":""},{"c":4,"en":"many-to-one model","zh":"多對一模型","n":""},{"c":4,"en":"multicore","zh":"多核心","n":""},{"c":4,"en":"multiplex","zh":"多工","n":""},{"c":4,"en":"multithreaded","zh":"多執行緒的","n":""},{"c":4,"en":"one-to-one model","zh":"一對一模型","n":""},{"c":4,"en":"OpenMP","zh":"—","n":"平行程式設計 API"},{"c":4,"en":"parallel region","zh":"平行區域","n":""},{"c":4,"en":"parallelism / parallel","zh":"平行","n":""},{"c":4,"en":"pending","zh":"擱置","n":""},{"c":4,"en":"Pthreads","zh":"POSIX 執行緒","n":"IEEE 1003.1c"},{"c":4,"en":"register set","zh":"暫存器組","n":""},{"c":4,"en":"resource sharing","zh":"資源共享","n":""},{"c":4,"en":"responsiveness","zh":"回應性","n":""},{"c":4,"en":"Runnable","zh":"—","n":"Java 介面"},{"c":4,"en":"scalability","zh":"可擴展性","n":""},{"c":4,"en":"scheduler activation","zh":"排程器啟動","n":""},{"c":4,"en":"serial queue","zh":"循序佇列","n":""},{"c":4,"en":"signal","zh":"訊號","n":""},{"c":4,"en":"signal handler","zh":"訊號處理常式","n":""},{"c":4,"en":"single-threaded","zh":"單執行緒的","n":""},{"c":4,"en":"specification vs. implementation","zh":"規格 vs. 實作","n":""},{"c":4,"en":"synchronous signal","zh":"同步訊號","n":"即 exception"},{"c":4,"en":"target thread","zh":"目標執行緒","n":""},{"c":4,"en":"task","zh":"任務","n":"Linux 對 process／thread 的統稱"},{"c":4,"en":"task parallelism","zh":"任務平行","n":""},{"c":4,"en":"TBB (Threading Building Blocks)","zh":"執行緒建構區塊","n":"Intel 的 C++ 樣板函式庫"},{"c":4,"en":"TEB","zh":"執行緒環境區塊","n":"Windows，user space"},{"c":4,"en":"template library","zh":"樣板函式庫","n":""},{"c":4,"en":"thread","zh":"執行緒","n":""},{"c":4,"en":"thread cancellation","zh":"執行緒取消","n":""},{"c":4,"en":"thread ID","zh":"執行緒識別碼","n":""},{"c":4,"en":"thread library","zh":"執行緒函式庫","n":""},{"c":4,"en":"thread of control","zh":"控制執行緒","n":""},{"c":4,"en":"thread pool","zh":"執行緒池","n":""},{"c":4,"en":"throughput","zh":"產能","n":""},{"c":4,"en":"TLS (Thread-Local Storage)","zh":"執行緒區域儲存","n":""},{"c":4,"en":"two-level model","zh":"二階層模型","n":""},{"c":4,"en":"upcall","zh":"向上呼叫","n":"kernel → thread library"},{"c":4,"en":"upcall handler","zh":"向上呼叫處理常式","n":""},{"c":4,"en":"user thread","zh":"使用者執行緒","n":""},{"c":4,"en":"user-defined signal handler","zh":"使用者自訂訊號處理常式","n":""},{"c":4,"en":"variation","zh":"變種","n":""},{"c":4,"en":"virtual processor","zh":"虛擬處理器","n":""}],"concepts":[{"c":1,"f":"OS 會在哪四個時機開始執行？","b":"(1) 系統開機　(2) 發生 interrupt　(3) 發生 exception　(4) 發生 system call。\n每次都從 user mode 切到 kernel mode，處理完再切回來。"},{"c":1,"f":"Interrupt 與 trap 有什麼不同？","b":"Interrupt 通常由硬體產生，與目前執行的指令無關。\nTrap（exception）由軟體產生，原因是錯誤（如除以零）或 system call。"},{"c":1,"f":"中斷發生後，CPU 如何找到處理程式並回到原本的工作？","b":"先保存被中斷指令的位址 → 查 interrupt vector 取得 ISR 的位址 → 執行 ISR → 回到被中斷的程式。"},{"c":1,"f":"Storage hierarchy 由快到慢的順序？哪幾層是 volatile？","b":"registers → cache → main memory → nonvolatile memory → hard-disk drives → optical disk → magnetic tapes。\n前三層是 volatile。"},{"c":1,"f":"Multiprocessor system 與 clustered system 差在哪裡？","b":"Multiprocessor：多個 CPU 在同一台機器內，共享 bus 與 memory。\nClustered：多台獨立機器（node）以網路連結，共享儲存。"},{"c":1,"f":"Single tasking、multiprogramming、multitasking 的切換時機？","b":"Single tasking：不切換。\nMultiprogramming：目前的 process 需要等待時才切換。\nMultitasking：時間片用完就切換。"},{"c":1,"f":"Timer 解決什麼問題？","b":"防止使用者程式霸佔 CPU（例如無窮迴圈）。計數器倒數到 0 就產生中斷，讓 OS 取回控制權。設定 timer 是 privileged instruction。"},{"c":1,"f":"Program 與 process 的差別？","b":"Program 是被動實體，是磁碟上的檔案。\nProcess 是主動實體，是執行中的程式，需要 CPU time、memory、I/O、files 等資源。"},{"c":1,"f":"Virtualization 與 emulation 的差別？","b":"Virtualization：guest 與 host 的 CPU 類型相同，速度較快。\nEmulation：來源與目標 CPU 類型不同，用軟體模擬硬體，最慢（例如 Rosetta）。"},{"c":1,"f":"SaaS、PaaS、IaaS 各提供什麼？","b":"SaaS：應用程式（文書處理、試算表）。\nPaaS：現成可用的軟體堆疊（資料庫伺服器）。\nIaaS：伺服器或儲存空間。"},{"c":2,"f":"OS 服務分成哪兩組？","b":"對使用者有幫助的：UI、program execution、I/O operations、file-system manipulation、communications、error detection。\n確保系統有效率運作的：resource allocation、logging、protection and security。"},{"c":2,"f":"實作命令的兩種方式？","b":"(1) 內建：直譯器本身包含執行命令的程式碼。\n(2) 系統程式：命令是程式檔名，shell 載入後執行。UNIX 採用第二種，新增命令不必改 shell。"},{"c":2,"f":"一次 system call 的四個步驟？","b":"① trap 進入 kernel\n② 查 dispatch table\n③ 執行 service routine\n④ 返回 user program"},{"c":2,"f":"傳遞 system call 參數的三種方法？","b":"(1) 直接放在暫存器（數量受限）。\n(2) 放在記憶體的 block，暫存器傳位址（Linux、Solaris）。\n(3) push 到 stack，由 OS pop 出來。"},{"c":2,"f":"System call 的六大類別？","b":"Process control、file manipulation、device manipulation、information maintenance、communications、protection。"},{"c":2,"f":"從原始碼到在記憶體中執行，要經過哪些步驟？","b":"source → compiler → object file → linker（加入其他 object file 與函式庫）→ executable → loader（加入動態連結函式庫）→ program in memory。"},{"c":2,"f":"讓應用程式能在多個 OS 上執行的三種方法？","b":"(1) 用直譯式語言寫（Python、Ruby）。\n(2) 用含有 VM 的語言寫（Java）。\n(3) 用標準語言寫，在每個 OS 上分別編譯（C）。"},{"c":2,"f":"五種 OS 結構是什麼？","b":"Monolithic、layered、microkernel、modules、hybrid。\n現實中的 OS（Linux、Windows、macOS、Android）大多是 hybrid。"},{"c":2,"f":"Modules 方式與 layered、microkernel 各有什麼異同？","b":"像 layered：各部分有明確的受保護介面；但更有彈性，任何模組可呼叫任何模組。\n像 microkernel：主模組只有核心功能；但更有效率，不需 message passing。"},{"c":2,"f":"BIOS 與 UEFI 的差別？","b":"BIOS：多階段開機，較慢。\nUEFI：單一完整的 boot manager，較快，對 64 位元系統與大容量磁碟支援較好。"},{"c":3,"f":"Process 在記憶體中的四個區段？","b":"text（程式碼）、data（全域變數）、heap（動態配置，往高位址長）、stack（參數、返回位址、區域變數，往低位址長）。"},{"c":3,"f":"Process 的五種狀態？","b":"new、ready、running、waiting、terminated。\nReady 是只缺 CPU；waiting 是在等事件，給 CPU 也不能跑。"},{"c":3,"f":"PCB 記錄哪些資訊？","b":"Process state、program counter、CPU registers、CPU 排程資訊、記憶體管理資訊、記帳資訊、I/O 狀態資訊。"},{"c":3,"f":"什麼是 swapping？什麼時候需要？","b":"把 process 從記憶體移到磁碟（swap out），之後再搬回來（swap in），用來降低 degree of multiprogramming。\n通常只在記憶體被過度配置時才需要。"},{"c":3,"f":"OS 建立一個 process 的步驟？","b":"配置記憶體 → 載入 executable image → 設定 PCB（PC 設為 entry point）→ 把 PCB 串到 ready queue。"},{"c":3,"f":"fork()、exec()、wait() 各做什麼？","b":"fork()：複製出一個 child process。\nexec()：把 process 的記憶體換成新程式。\nwait()：parent 等待 child 結束並取得其狀態。"},{"c":3,"f":"Cooperating process 存在的三個原因？","b":"Information sharing、computation speedup（需要多核心）、modularity。"},{"c":3,"f":"Bounded buffer 的「空」與「滿」如何判斷？","b":"空：in == out\n滿：((in + 1) % BUFFER_SIZE) == out\n所以最多只能放 BUFFER_SIZE − 1 個項目。"},{"c":3,"f":"Direct 與 indirect communication 的差別？","b":"Direct：明確指名對方 process；一條 link 剛好關聯兩個 process。\nIndirect：透過 mailbox（port）；一條 link 可關聯兩個以上的 process。"},{"c":3,"f":"Ordinary pipe 與 named pipe 的差別？","b":"Ordinary：單向，需要 parent–child 關係，process 結束就消失。\nNamed：雙向，不需親屬關係，持續存在直到被刪除。"},{"c":4,"f":"Thread 自己擁有什麼？與同 process 的其他 thread 共享什麼？","b":"自己有：thread ID、program counter、register set、stack。\n共享：code section、data section、open files、signals。"},{"c":4,"f":"Multithreading 的四大好處？","b":"Responsiveness（回應性）、resource sharing（資源共享）、economy（經濟）、scalability（可擴展性）。"},{"c":4,"f":"Concurrency 與 parallelism 的差別？","b":"Concurrency：所有工作都有進展，可以靠快速切換達成，單核心也行。\nParallelism：真的同時執行，需要多核心。"},{"c":4,"f":"多核心程式設計的五大挑戰？","b":"Dividing activities、balance、data splitting、data dependency、testing and debugging。"},{"c":4,"f":"三種 multithreading model 各是什麼？","b":"Many-to-one：多個 user thread 對一個 kernel thread。\nOne-to-one：每個 user thread 對一個 kernel thread。\nMany-to-many：多個 user thread 對較少或相等數量的 kernel thread。"},{"c":4,"f":"Java 建立 thread 的兩種方式？哪一種是標準做法？","b":"(1) 繼承 Thread 類別。\n(2) 實作 Runnable 介面（標準做法）。"},{"c":4,"f":"什麼是 implicit threading？有哪五種方法？","b":"Thread 的建立與管理交給 compiler 與 run-time library。\nThread pools、fork-join、OpenMP、Grand Central Dispatch、Intel TBB。"},{"c":4,"f":"Multithreaded process 收到 signal 時，可以送給誰？","b":"(1) signal 所適用的那個 thread。\n(2) process 中的每個 thread。\n(3) 某些 thread。\n(4) 指定一個專門接收所有 signal 的 thread。"},{"c":4,"f":"Thread-local storage 與區域變數、全域變數有何不同？","b":"區域變數只在單次函式呼叫內可見。\nTLS 跨函式呼叫都可見，而且每個 thread 各有一份。\n全域變數由所有 thread 共享。"},{"c":4,"f":"LWP 與 upcall 是什麼？","b":"LWP：user thread 與 kernel thread 之間的中間結構，對 thread library 而言像虛擬處理器。\nUpcall：kernel 通知 thread library 的機制，方向與 system call 相反。"}],"quiz":[{"c":1,"q":"作業系統被稱為 resource allocator 與 control program。其中 control program 指的是什麼？","o":["管理使用者程式的執行，防止錯誤與不當使用電腦","在多個互相衝突的請求之間公平地分配資源","把原始碼翻譯成機器碼","在開機時把 kernel 載入記憶體"],"a":0,"e":"Control program 管制程式的執行；在衝突請求間分配資源的是 resource allocator。"},{"c":1,"q":"關於 kernel 最常見的定義是哪一個？","o":["電腦上隨時都在執行的那一個程式","廠商出貨時附帶的所有軟體","使用者登入後看到的桌面環境","存放在 ROM 中的開機程式"],"a":0,"e":"較常見的定義是：OS 是隨時在執行的那個程式，即 kernel。其餘分為 system programs 與 application programs。"},{"c":1,"q":"Bootstrap program 通常存放在哪裡？它的主要工作是什麼？","o":["ROM 或 EEPROM；初始化系統並把 kernel 載入記憶體","硬碟的使用者目錄；啟動圖形介面","RAM；替應用程式配置記憶體","CPU 的 cache；加速指令執行"],"a":0,"e":"Bootstrap program 屬於 firmware，存於 ROM／EEPROM，負責初始化並載入 kernel 後開始執行 OS。"},{"c":1,"q":"Interrupt vector 裡存放的是什麼？","o":["各個 interrupt service routine 的位址","被中斷程式的區域變數","每個裝置的資料緩衝區","所有使用者的帳號資料"],"a":0,"e":"Interrupt vector 是一張位址表，CPU 依中斷編號查表後跳到對應的 ISR。"},{"c":1,"q":"相較於 interrupt-driven I/O，DMA 的特點是什麼？","o":["裝置控制器直接把整個 block 搬進記憶體，每個 block 只產生一次中斷","每傳一個 byte 就中斷 CPU 一次","完全不需要 device controller","資料必須先經過 CPU 的暫存器才能進記憶體"],"a":0,"e":"DMA 不需 CPU 介入搬資料，CPU 可同時做其他事；每個 block 只中斷一次。"},{"c":1,"q":"下列哪一種儲存屬於 volatile（揮發性）？","o":["Main memory","Hard-disk drive","Magnetic tape","Optical disk"],"a":0,"e":"Registers、cache、main memory 是揮發性儲存，斷電後資料消失；其餘為非揮發性。"},{"c":1,"q":"Symmetric multiprocessing（SMP）的特徵是什麼？","o":["每個處理器地位對等，都能執行 OS 功能與使用者 process","由一個 boss 處理器分派工作給 worker 處理器","每台機器只有一個處理器，以網路相連","只有一個處理器可以執行 kernel 程式碼"],"a":0,"e":"Boss–worker 的分工是 asymmetric multiprocessing；多台機器以網路相連是 clustered system。"},{"c":1,"q":"Multiprogramming 的主要目的是什麼？","o":["讓 CPU 永遠有程式可執行，提高 CPU utilization","讓每位使用者都得到相同的執行時間","讓單一程式跑得比原本更快","減少程式佔用的記憶體"],"a":0,"e":"Multiprogramming 在目前的 process 需要等待時切換到另一個，避免 CPU 閒置。"},{"c":1,"q":"Multitasking（time-sharing）與 multiprogramming 最大的差別是什麼？","o":["切換非常頻繁（時間片用完就換），以提供快速的 response time","記憶體中一次只放一個程式","不需要 CPU scheduling","只能在多處理器系統上實作"],"a":0,"e":"Multitasking 是 multiprogramming 的邏輯延伸，重點在讓使用者感覺反應很快。"},{"c":1,"q":"關於 dual-mode operation 的 mode bit，何者正確？","o":["kernel mode 為 0，user mode 為 1","kernel mode 為 1，user mode 為 0","兩者都是 1，由軟體另外區分","mode bit 只在開機時使用一次"],"a":0,"e":"Mode bit 由硬體提供：0 代表 kernel mode，1 代表 user mode。"},{"c":1,"q":"投影片的四個 Program Misbehavior 範例中，哪一個不會產生 exception，必須靠 timer 才能處理？","o":["while(1){} 無窮迴圈","a = 5/0 除以零","對位址 0 附近寫入資料","寫入 malloc(10) 之外很遠的位置"],"a":0,"e":"無窮迴圈不是非法指令，CPU 偵測不到錯誤；OS 靠 timer interrupt 才能取回 CPU 控制權。"},{"c":1,"q":"如果程式在 user mode 嘗試執行 privileged instruction，會發生什麼事？","o":["硬體視為非法並 trap 到 OS","指令照常執行，但速度較慢","系統自動切換到 kernel mode 後繼續執行","該指令被忽略，程式繼續往下執行"],"a":0,"e":"特權指令只能在 kernel mode 執行；在 user mode 執行會被硬體攔下並交給 OS 處理。"},{"c":1,"q":"下列哪一個是 Type 2 hypervisor？","o":["VirtualBox","VMware ESX","Citrix XenServer","Rosetta"],"a":0,"e":"Type 2 以應用程式形式跑在 host OS 上（VirtualBox、VMware Workstation）。ESX 與 XenServer 是 Type 1；Rosetta 是 emulator。"},{"c":1,"q":"Hash function 為 H(X) = X % 8。X = 6 與 X = 14 的結果說明了什麼？","o":["兩者都得到 6，發生 hash collision","分別得到 6 與 7，沒有衝突","兩者都得到 0","14 超出範圍，無法計算"],"a":0,"e":"6 % 8 = 6、14 % 8 = 6，不同輸入得到相同輸出，稱為 hash collision。"},{"c":1,"q":"Bitmap 為 001011101（由位置 0 開始，0 表示可用）。哪些資源可用？","o":["0、1、3、7","2、4、5、6、8","0、1、2、3","1、3、5、7"],"a":0,"e":"位置 0、1、3、7 的 bit 是 0，所以可用；其餘位置的 bit 是 1，表示已佔用。"},{"c":2,"q":"在 UNIX 輸入 rm file.txt 時，shell 實際做了什麼？","o":["找到名為 rm 的系統程式，載入記憶體執行，並把 file.txt 當參數傳入","執行 shell 內建的刪除檔案程式碼","直接修改磁碟上的目錄區塊","把命令轉交給 GUI 處理"],"a":0,"e":"UNIX 的大多數命令是系統程式的檔名，所以新增命令不需要修改 shell。"},{"c":2,"q":"程式設計師通常透過 API 而不是直接使用 system call，主要原因是什麼？","o":["程式可攜性較好，而且實際的 system call 較瑣碎難用","API 的執行速度一定比 system call 快","System call 只能用組合語言呼叫","API 不需要進入 kernel mode"],"a":0,"e":"同一份程式可以在支援相同 API 的系統上編譯執行；API 也隱藏了 system call 的細節。"},{"c":2,"q":"C 程式呼叫 printf() 時，最後會由哪一個 system call 完成輸出？","o":["write()","read()","fork()","open()"],"a":0,"e":"printf() 是 library call，標準 C 函式庫會再呼叫 write() system call。"},{"c":2,"q":"在 32 位元 x86 的 Linux 上，使用者 process 用哪一個軟體中斷編號發出 system call？","o":["0x80","0x00","0x21","0xFF"],"a":0,"e":"標準 C 函式庫把參數放進暫存器後觸發 int 0x80，system_call 函式即為其中斷處理常式。"},{"c":2,"q":"Linux 與 Solaris 傳遞 system call 參數時採用哪種方式？","o":["把參數放在記憶體的 block 中，再用暫存器傳遞該 block 的位址","把所有參數寫進暫存檔","一律用環境變數傳遞","只允許最多一個參數"],"a":0,"e":"三種方法為：直接放暫存器、block／table 的位址放暫存器、push 到 stack。Linux 與 Solaris 用第二種。"},{"c":2,"q":"Windows 的 CreateProcess() 對應到 Unix 的哪一個 system call？","o":["fork()","open()","pipe()","chmod()"],"a":0,"e":"兩者都屬於 process control 類別。open() 對應 CreateFile()，pipe() 對應 CreatePipe()。"},{"c":2,"q":"chmod()、umask()、chown() 屬於哪一類 system call？","o":["Protection","Process control","Communications","Information maintenance"],"a":0,"e":"這三個都用來設定存取權限，屬於 protection 類別。"},{"c":2,"q":"關於 message passing 與 shared memory，何者正確？","o":["Message passing 適合交換少量資料，也較容易用於跨電腦通訊","Shared memory 每次存取都必須經過 kernel","Message passing 的速度一定比 shared memory 快","Shared memory 不需要考慮同步問題"],"a":0,"e":"Shared memory 速度最快但要自行處理 protection 與 synchronization；message passing 每次都經 kernel。"},{"c":2,"q":"Linker 的工作是什麼？","o":["把多個 relocatable object file 與函式庫合併成單一可執行檔","把原始碼翻譯成 object file","把可執行檔載入記憶體並開始執行","在執行時偵測記憶體錯誤"],"a":0,"e":"Compiler 產生 object file，linker 合併成 executable，loader 再把它載入記憶體。"},{"c":2,"q":"「timer 是確保 CPU 保護的工具，而某個使用者的 timer 要設多久是另一回事。」後者屬於什麼？","o":["Policy","Mechanism","Implementation","Middleware"],"a":0,"e":"Mechanism 決定如何做（how），policy 決定做什麼（what）。兩者分開可以在改變策略時保有彈性。"},{"c":2,"q":"Monolithic kernel 至今仍被廣泛採用，主要原因是什麼？","o":["效能好：system call 的 overhead 小，kernel 內部通訊快","最容易擴充與維護","任一元件當掉都不會影響其他部分","kernel 的體積最小"],"a":0,"e":"Monolithic 的缺點是難以實作與擴充，但速度與效率是它的明顯優勢。"},{"c":2,"q":"Microkernel 架構中，user space 的各項服務之間如何溝通？它的主要缺點是什麼？","o":["透過 message passing；缺點是效能因額外負擔而下降","直接呼叫彼此的函式；缺點是不安全","透過共用全域變數；缺點是難以移植","透過 loadable module；缺點是必須重開機"],"a":0,"e":"Microkernel 易擴充、易移植、較安全可靠，但 user space 與 kernel space 之間的通訊帶來效能負擔。"},{"c":2,"q":"相較於直接修改 Linux kernel 原始碼，使用 loadable kernel module（LKM）的好處是什麼？","o":["模組可單獨編譯，執行期間用 insmod／rmmod 載入與卸載，不必重開機","模組在 user space 執行，所以比較安全","模組之間必須用 message passing 溝通","載入後 kernel 的大小會永久增加"],"a":0,"e":"LKM 是 kernel 的一部分（不是 process），可隨時卸載，不會永久影響 kernel 大小。"},{"c":2,"q":"Layered approach 的主要優點與主要困難分別是什麼？","o":["優點是建構與除錯簡單；困難是必須仔細規劃每一層的功能","優點是效能最好；困難是無法除錯","優點是不需要 kernel mode；困難是不支援多工","優點是模組可動態載入；困難是要重開機"],"a":0,"e":"每層只能使用下層的服務，所以層的定義要很小心；層數越多 overhead 也越大。"},{"c":2,"q":"應用程式當掉時產生的 core dump 與 OS 當機時產生的 crash dump，內容有何不同？","o":["Core dump 存該 process 的記憶體；crash dump 存 kernel 的記憶體","Core dump 存 kernel 記憶體；crash dump 存 process 記憶體","兩者內容相同，只是檔名不同","兩者都只記錄錯誤發生的時間"],"a":0,"e":"Core dump 對應應用程式失敗；crash dump 對應作業系統失敗。"},{"c":3,"q":"程式中用 malloc(1000) 配置的記憶體位於 process 的哪一個區段？","o":["Heap","Stack","Data section","Text section"],"a":0,"e":"Heap 存放執行期間動態配置的記憶體；stack 存放參數、返回位址與區域變數。"},{"c":3,"q":"全域變數 int a = 3; 存放在哪一個區段？","o":["Data section","Stack","Heap","Text section"],"a":0,"e":"Data section 存放全域變數；text section 存放程式碼。"},{"c":3,"q":"處於 waiting 狀態的 process，等待的 I/O 完成後會進入哪一個狀態？","o":["Ready","Running","New","Terminated"],"a":0,"e":"Waiting 不會直接回到 running，必須先回 ready，再等 scheduler dispatch。"},{"c":3,"q":"哪一個事件會讓 process 從 running 回到 ready？","o":["發生 interrupt（例如時間片用完）","發出 I/O 請求","呼叫 exit()","等待子行程結束"],"a":0,"e":"I/O 請求或等待事件會進入 waiting；exit 會進入 terminated；被中斷則回到 ready。"},{"c":3,"q":"Context switch 時，被換下的 process 的狀態保存在哪裡？","o":["該 process 的 PCB","Interrupt vector","Ready queue 的 header","可執行檔的 header"],"a":0,"e":"PCB 記錄 program counter、CPU registers、排程與記憶體管理資訊等，切換時存入舊的、載入新的。"},{"c":3,"q":"關於 context-switch time 的敘述，何者正確？","o":["是純粹的 overhead，切換期間系統不做任何有用的工作","切換越頻繁，系統整體效能一定越好","與硬體支援完全無關","只有 multiprocessor 系統才會發生"],"a":0,"e":"Context switch 時間高度取決於硬體支援，典型為數微秒，期間沒有任何 process 有進展。"},{"c":3,"q":"fork() 回傳 0 代表什麼？","o":["目前執行的是 child process","目前執行的是 parent process","fork 失敗","child 已經結束"],"a":0,"e":"Child 得到 0；parent 得到 child 的 pid（大於 0）；小於 0 表示失敗。"},{"c":3,"q":"exec() 系列 system call 的作用是什麼？","o":["把目前 process 的記憶體空間換成一個新程式","建立一個新的 child process","等待 child process 結束","終止目前的 process 並回收資源"],"a":0,"e":"exec() 不產生新 process，只是把內容換掉；成功後不會返回原本的程式碼。"},{"c":3,"q":"什麼是 zombie process？","o":["已經終止，但 parent 還沒呼叫 wait() 的 process","parent 已終止而自己仍在執行的 process","陷入無窮迴圈的 process","被 swap out 到磁碟的 process"],"a":0,"e":"Parent 呼叫 wait() 後，zombie 的 pid 與 process table 項目才會被釋放。"},{"c":3,"q":"在 UNIX／Linux 中，parent 先終止後留下的 orphan process 如何處理？","o":["由 init process 成為新的 parent，並定期呼叫 wait()","立刻被系統全部終止","變成 zombie 直到重開機","自動升級為 kernel thread"],"a":0,"e":"init 收養孤兒並定期 wait()，以回收它們的資源。"},{"c":3,"q":"投影片的 bounded-buffer 解法中 BUFFER_SIZE 為 10，buffer 最多能同時放幾個項目？","o":["9","10","11","5"],"a":0,"e":"只用 in 與 out 判斷時，放滿 10 格會使 in == out，與「空」無法區分，所以必須留一格不用。"},{"c":3,"q":"當 send() 與 receive() 都是 blocking 時，sender 與 receiver 之間形成什麼？","o":["Rendezvous","Deadlock","Mailbox","Zombie"],"a":0,"e":"Blocking 即 synchronous；兩邊都 blocking 時稱為 rendezvous（會合）。"},{"c":3,"q":"Message queue 為 zero capacity 時，sender 的行為是什麼？","o":["必須 block，直到 receiver 收下訊息","永遠不會 block","只有在佇列滿時才 block","訊息直接被丟棄"],"a":0,"e":"Zero capacity 沒有 buffering；bounded 在佇列滿時才等；unbounded 永不 block。"},{"c":3,"q":"關於 UNIX 的 ordinary pipe，何者正確？","o":["單向通訊，而且通訊的 process 必須有 parent–child 關係","雙向通訊，任何兩個 process 都能使用","可以跨網路在不同機器之間通訊","process 結束後 pipe 仍然存在"],"a":0,"e":"Named pipe（FIFO）才不需要親屬關係，並在通訊的 process 結束後仍然存在。"},{"c":3,"q":"RPC 中 client-side stub 的工作是什麼？","o":["找到 server，並把參數 marshal 後送出","在 server 上實際執行被呼叫的程序","替 client 排程 CPU","把 socket 轉換成 pipe"],"a":0,"e":"Server-side stub 收到訊息後解開參數並執行程序。Stub 讓遠端呼叫看起來像本地呼叫。"},{"c":4,"q":"同一個 process 內的 thread 之間，下列哪一項不共享？","o":["Stack","Code section","全域變數（data section）","已開啟的檔案"],"a":0,"e":"每個 thread 有自己的 thread ID、program counter、register set 與 stack。"},{"c":4,"q":"下列哪一項不是投影片列出的 multithreaded programming 四大好處？","o":["Isolation：一個 thread 出錯不會影響同 process 的其他 thread","Responsiveness","Resource sharing","Scalability"],"a":0,"e":"四大好處是 responsiveness、resource sharing、economy、scalability。Thread 共享位址空間，隔離性反而比 process 差。"},{"c":4,"q":"在只有單一核心的系統上，多個 thread 的執行情況是什麼？","o":["可以 concurrent（交錯執行），但不是 parallel","可以真正同時執行","一次只能存在一個 thread","無法做 context switch"],"a":0,"e":"Concurrency 指所有工作都有進展；parallelism 指同時執行，需要多個核心。"},{"c":4,"q":"兩個 thread 分別加總 array 的前半與後半，屬於哪一種 parallelism？","o":["Data parallelism","Task parallelism","Fork parallelism","Implicit parallelism"],"a":0,"e":"Data parallelism 把同一份資料的子集合分到各核心做相同運算；task parallelism 則是各 thread 做不同運算。"},{"c":4,"q":"Many-to-one model 的主要缺點是什麼？","o":["一個 thread 呼叫 blocking system call 會讓整個 process block，而且無法在多核心上平行執行","每建立一個 user thread 就要建立一個 kernel thread","非常難以實作","Thread 的建立與管理速度很慢"],"a":0,"e":"Many-to-one 的 thread 管理在 user space，很有效率，但同一時間只有一個 thread 能進入 kernel。"},{"c":4,"q":"Linux 與 Windows 採用哪一種 multithreading model？","o":["One-to-one","Many-to-one","Many-to-many","Two-level"],"a":0,"e":"核心數增加後，限制 kernel thread 數量已不那麼重要，所以大多數 OS 現在用 one-to-one。"},{"c":4,"q":"pthread_join(tid, NULL) 的作用是什麼？","o":["等待指定的 thread 結束","建立一個新的 thread","取消指定的 thread","設定 thread 的預設屬性"],"a":0,"e":"pthread_create() 建立、pthread_join() 等待、pthread_exit() 結束、pthread_cancel() 取消。"},{"c":4,"q":"關於 Pthreads 的敘述，何者正確？","o":["它是定義 API 行為的規格（specification），不是實作","它只能在 Windows 上使用","它是 Java 語言內建的類別","它規定一定要以 user-level library 實作"],"a":0,"e":"Pthreads 是 POSIX 標準（IEEE 1003.1c），實作方式由函式庫開發者決定，常見於 Linux 與 macOS。"},{"c":4,"q":"在 Java 中要讓新 thread 開始執行，應該呼叫哪一個方法？","o":["start()","run()","join()","interrupt()"],"a":0,"e":"start() 會建立新 thread 並由它執行 run()；直接呼叫 run() 只是一般的方法呼叫，不會產生新 thread。"},{"c":4,"q":"Thread pool 的好處不包含下列哪一項？","o":["讓 thread 的數量可以無限制成長","用現成的 thread 服務請求，比新建 thread 快","限制同一時間存在的 thread 數量","把要執行的工作與建立 thread 的機制分開"],"a":0,"e":"Thread pool 正是為了避免無上限的 thread 耗盡系統資源。"},{"c":4,"q":"OpenMP 的 #pragma omp parallel 會做什麼？","o":["建立與核心數量相同的 thread 來執行該區塊","把該區塊編譯成 kernel module","強制該區塊以單一 thread 執行","把該區塊丟進 dispatch queue"],"a":0,"e":"#pragma omp parallel for 則是把 for 迴圈的各次迭代分給多個 thread。Dispatch queue 是 GCD 的概念。"},{"c":4,"q":"Multithreaded process 中的一個 thread 呼叫 exec() 會發生什麼事？","o":["指定的程式取代整個 process，包括所有 thread","只有呼叫的那個 thread 被取代","其他 thread 繼續執行原本的程式","系統回傳錯誤，因為不允許這樣呼叫"],"a":0,"e":"exec() 的參數所指定的程式會取代整個 process。"},{"c":4,"q":"下列哪一個事件產生的是 synchronous signal？","o":["程式執行了除以零","使用者按下 Ctrl-C","Timer 到期","另一個 process 呼叫 kill() 送出訊號"],"a":0,"e":"Synchronous signal 由執行中的程式自己的動作造成，並傳給同一個 process；其他三者都來自外部事件。"},{"c":4,"q":"Deferred cancellation 的做法是什麼？","o":["Target thread 定期檢查自己是否該終止，在 cancellation point 才結束","由另一個 thread 立刻強制終止 target thread","取消請求永遠被忽略","必須等整個 process 結束才會生效"],"a":0,"e":"Deferred 是 Pthreads 的預設類型，讓 thread 在安全的時間點結束；立刻終止的是 asynchronous cancellation。"},{"c":4,"q":"Linux 的 clone() 帶上 CLONE_VM 旗標代表什麼？","o":["parent 與 child 共享同一個記憶體空間","child 得到 parent 記憶體的獨立複本","child 會在虛擬機器中執行","child 不能存取任何記憶體"],"a":0,"e":"Linux 不區分 process 與 thread，統稱 task；clone() 的旗標決定 parent 與 child 之間共享多少。"}]};
+const DATA = {"chapters":[{"n":1,"zh":"導論","en":"Introduction","sections":15},{"n":2,"zh":"作業系統結構","en":"Operating-System Structures","sections":14},{"n":3,"zh":"行程","en":"Processes","sections":12},{"n":4,"zh":"執行緒與並行","en":"Threads & Concurrency","sections":11},{"n":5,"zh":"CPU 排程","en":"CPU Scheduling","sections":12}],"terms":[{"c":1,"en":"access control","zh":"存取控制","n":""},{"c":1,"en":"accounting","zh":"記帳／使用紀錄","n":""},{"c":1,"en":"active entity","zh":"主動實體","n":"指 process"},{"c":1,"en":"allocation / deallocation","zh":"配置／釋放","n":""},{"c":1,"en":"application program","zh":"應用程式","n":""},{"c":1,"en":"asymmetric clustering","zh":"非對稱叢集","n":"一台 hot-standby"},{"c":1,"en":"asymmetric multiprocessing","zh":"非對稱式多處理","n":"boss–worker"},{"c":1,"en":"augmented reality (AR)","zh":"擴增實境","n":""},{"c":1,"en":"authorization","zh":"授權","n":""},{"c":1,"en":"autonomous","zh":"自主的","n":""},{"c":1,"en":"availability","zh":"可用性","n":"投影片譯「可利用性」"},{"c":1,"en":"balanced binary search tree","zh":"平衡二元搜尋樹","n":""},{"c":1,"en":"binary search tree","zh":"二元搜尋樹","n":""},{"c":1,"en":"bitmap","zh":"位元圖","n":""},{"c":1,"en":"blurred","zh":"模糊的","n":""},{"c":1,"en":"bootstrap program","zh":"啟動程式","n":"存於 ROM / EEPROM"},{"c":1,"en":"buffer / buffering","zh":"緩衝區／緩衝","n":""},{"c":1,"en":"bus","zh":"匯流排","n":""},{"c":1,"en":"cache / caching","zh":"快取","n":""},{"c":1,"en":"cache coherency","zh":"快取一致性","n":"投影片譯「統一；連貫性」"},{"c":1,"en":"CLI (Command Line Interface)","zh":"命令列介面","n":""},{"c":1,"en":"client-server","zh":"主從式","n":""},{"c":1,"en":"cloud computing","zh":"雲端運算","n":""},{"c":1,"en":"clustered system","zh":"叢集系統","n":""},{"c":1,"en":"command interpreter","zh":"命令直譯器","n":"即 shell"},{"c":1,"en":"concurrency / concurrent","zh":"並行（同時發生）","n":""},{"c":1,"en":"contiguous allocation","zh":"連續配置","n":""},{"c":1,"en":"control program","zh":"控制程式","n":""},{"c":1,"en":"core","zh":"核心（CPU 運算核心）","n":"注意與 kernel 區分"},{"c":1,"en":"CPU scheduling","zh":"CPU 排程","n":""},{"c":1,"en":"CPU utilization","zh":"CPU 使用率","n":""},{"c":1,"en":"deadlock","zh":"死結","n":""},{"c":1,"en":"denial-of-service (DoS)","zh":"阻斷服務","n":""},{"c":1,"en":"device controller","zh":"裝置控制器","n":"硬體"},{"c":1,"en":"device driver","zh":"裝置驅動程式","n":"軟體"},{"c":1,"en":"directory","zh":"目錄","n":""},{"c":1,"en":"dispatch table","zh":"分派表","n":""},{"c":1,"en":"distributed system","zh":"分散式系統","n":""},{"c":1,"en":"DLM (Distributed Lock Manager)","zh":"分散式鎖管理器","n":""},{"c":1,"en":"DMA (Direct Memory Access)","zh":"直接記憶體存取","n":""},{"c":1,"en":"dual-mode operation","zh":"雙模式運作","n":""},{"c":1,"en":"embedded system","zh":"嵌入式系統","n":""},{"c":1,"en":"emulation / emulator","zh":"模擬／模擬器","n":""},{"c":1,"en":"errant","zh":"出錯的","n":"投影片譯「走入歧途的」"},{"c":1,"en":"exception","zh":"例外","n":"同 trap"},{"c":1,"en":"exploration","zh":"探究","n":""},{"c":1,"en":"fault-tolerant","zh":"容錯","n":""},{"c":1,"en":"FIFO (First In, First Out)","zh":"先進先出","n":"queue"},{"c":1,"en":"firewall","zh":"防火牆","n":""},{"c":1,"en":"firmware","zh":"韌體","n":""},{"c":1,"en":"free software","zh":"自由軟體","n":""},{"c":1,"en":"freeware","zh":"免費軟體","n":""},{"c":1,"en":"GPL (General Public License)","zh":"通用公共授權","n":""},{"c":1,"en":"graceful degradation","zh":"優雅降級","n":""},{"c":1,"en":"guest OS","zh":"客體作業系統","n":""},{"c":1,"en":"GUI (Graphical User Interface)","zh":"圖形使用者介面","n":""},{"c":1,"en":"gyroscope","zh":"陀螺儀","n":""},{"c":1,"en":"hash collision","zh":"雜湊碰撞","n":""},{"c":1,"en":"hash function / hash map","zh":"雜湊函式／雜湊表","n":""},{"c":1,"en":"heterogeneous","zh":"異質的","n":""},{"c":1,"en":"high availability","zh":"高可用性","n":""},{"c":1,"en":"hinge on","zh":"取決於","n":""},{"c":1,"en":"host OS","zh":"主機作業系統","n":""},{"c":1,"en":"hot-standby","zh":"熱待機","n":""},{"c":1,"en":"HPC (High-Performance Computing)","zh":"高效能運算","n":""},{"c":1,"en":"hypervisor","zh":"虛擬機器管理程式","n":"同 VMM"},{"c":1,"en":"IaaS","zh":"基礎設施即服務","n":""},{"c":1,"en":"illusion","zh":"錯覺","n":""},{"c":1,"en":"intermediary","zh":"中介者","n":""},{"c":1,"en":"interrupt","zh":"中斷","n":""},{"c":1,"en":"interrupt-driven","zh":"中斷驅動","n":""},{"c":1,"en":"interrupt vector","zh":"中斷向量","n":""},{"c":1,"en":"ISR (Interrupt Service Routine)","zh":"中斷服務常式","n":""},{"c":1,"en":"job scheduling","zh":"工作排程","n":""},{"c":1,"en":"kernel","zh":"核心","n":"OS 的核心程式"},{"c":1,"en":"kernel mode","zh":"核心模式","n":"mode bit = 0"},{"c":1,"en":"LIFO (Last In, First Out)","zh":"後進先出","n":"stack"},{"c":1,"en":"linked list","zh":"鏈結串列","n":""},{"c":1,"en":"load balancer","zh":"負載平衡器","n":""},{"c":1,"en":"malicious","zh":"惡意的","n":""},{"c":1,"en":"maskable interrupt","zh":"可遮罩中斷","n":""},{"c":1,"en":"mass storage","zh":"大量儲存","n":""},{"c":1,"en":"middleware","zh":"中介軟體","n":""},{"c":1,"en":"mode bit","zh":"模式位元","n":""},{"c":1,"en":"mounting / unmounting","zh":"掛載／卸載","n":""},{"c":1,"en":"multicore","zh":"多核心","n":""},{"c":1,"en":"multiprocessor system","zh":"多處理器系統","n":""},{"c":1,"en":"multiprogramming","zh":"多元程式","n":""},{"c":1,"en":"multitasking","zh":"多工","n":""},{"c":1,"en":"nonvolatile","zh":"非揮發性","n":""},{"c":1,"en":"NUMA","zh":"非一致記憶體存取","n":""},{"c":1,"en":"NVM (Non-Volatile Memory)","zh":"非揮發性記憶體","n":""},{"c":1,"en":"open-source","zh":"開放原始碼","n":""},{"c":1,"en":"PaaS","zh":"平台即服務","n":""},{"c":1,"en":"paging","zh":"分頁","n":""},{"c":1,"en":"parallelization","zh":"平行化","n":""},{"c":1,"en":"partitioning","zh":"分割","n":""},{"c":1,"en":"passive entity","zh":"被動實體","n":"指 program"},{"c":1,"en":"peculiarities","zh":"特殊性","n":"投影片譯「奇特、特性」"},{"c":1,"en":"peer-to-peer (P2P)","zh":"對等式","n":""},{"c":1,"en":"peripheral device","zh":"周邊裝置","n":""},{"c":1,"en":"placement problem","zh":"放置問題","n":""},{"c":1,"en":"primitives","zh":"基本操作","n":""},{"c":1,"en":"privilege escalation","zh":"權限提升","n":"投影片譯 escalation「逐步擴大」"},{"c":1,"en":"privileged instruction","zh":"特權指令","n":""},{"c":1,"en":"privileged mode","zh":"特權模式","n":"同 kernel mode"},{"c":1,"en":"process","zh":"行程","n":""},{"c":1,"en":"program counter","zh":"程式計數器","n":""},{"c":1,"en":"protection","zh":"保護","n":""},{"c":1,"en":"protection rings","zh":"保護環","n":""},{"c":1,"en":"queue","zh":"佇列","n":""},{"c":1,"en":"real-time system","zh":"即時系統","n":""},{"c":1,"en":"reclamation","zh":"回收利用","n":""},{"c":1,"en":"red-black tree","zh":"紅黑樹","n":""},{"c":1,"en":"register","zh":"暫存器","n":""},{"c":1,"en":"reliability","zh":"可靠度","n":""},{"c":1,"en":"replacement problem / policy","zh":"置換問題／策略","n":""},{"c":1,"en":"replica","zh":"複本","n":""},{"c":1,"en":"resource allocator","zh":"資源分配者","n":""},{"c":1,"en":"response time","zh":"回應時間","n":""},{"c":1,"en":"SaaS","zh":"軟體即服務","n":""},{"c":1,"en":"SAN (Storage-Area Network)","zh":"儲存區域網路","n":""},{"c":1,"en":"secondary storage","zh":"輔助儲存","n":""},{"c":1,"en":"security","zh":"安全","n":""},{"c":1,"en":"segmentation","zh":"分段","n":""},{"c":1,"en":"sequential / random access","zh":"循序／隨機存取","n":""},{"c":1,"en":"shell","zh":"殼層","n":""},{"c":1,"en":"shuffling","zh":"輪替","n":"投影片譯「洗牌」"},{"c":1,"en":"SMP (Symmetric Multiprocessing)","zh":"對稱式多處理","n":""},{"c":1,"en":"spooling","zh":"排存","n":""},{"c":1,"en":"stack","zh":"堆疊","n":""},{"c":1,"en":"stand-alone","zh":"獨立運作","n":""},{"c":1,"en":"supervisor mode","zh":"監督模式","n":"同 kernel mode"},{"c":1,"en":"surviving","zh":"存活的","n":""},{"c":1,"en":"symmetric clustering","zh":"對稱叢集","n":""},{"c":1,"en":"synchronization","zh":"同步","n":""},{"c":1,"en":"system call","zh":"系統呼叫","n":"也稱 monitor call"},{"c":1,"en":"system program","zh":"系統程式","n":""},{"c":1,"en":"tertiary storage","zh":"第三級儲存","n":"光碟、磁帶"},{"c":1,"en":"thin client","zh":"精簡型用戶端","n":""},{"c":1,"en":"thread","zh":"執行緒","n":""},{"c":1,"en":"throughput","zh":"產能／吞吐量","n":""},{"c":1,"en":"time slice","zh":"時間片","n":""},{"c":1,"en":"time-sharing","zh":"分時","n":""},{"c":1,"en":"timer","zh":"計時器","n":""},{"c":1,"en":"trap","zh":"陷阱","n":"軟體產生的中斷"},{"c":1,"en":"ubiquitous","zh":"無所不在的","n":""},{"c":1,"en":"UMA","zh":"一致記憶體存取","n":""},{"c":1,"en":"user mode","zh":"使用者模式","n":"mode bit = 1"},{"c":1,"en":"virtual machine (VM)","zh":"虛擬機器","n":""},{"c":1,"en":"virtual memory","zh":"虛擬記憶體","n":""},{"c":1,"en":"virtualization","zh":"虛擬化","n":""},{"c":1,"en":"VMM (Virtual Machine Manager)","zh":"虛擬機器管理員","n":""},{"c":1,"en":"VoIP (Voice over IP)","zh":"網路語音","n":""},{"c":1,"en":"volatile / volatility","zh":"揮發性","n":""},{"c":2,"en":"abort","zh":"中止","n":"異常結束"},{"c":2,"en":"address space","zh":"位址空間","n":""},{"c":2,"en":"API (Application Program Interface)","zh":"應用程式介面","n":""},{"c":2,"en":"ART (Android RunTime)","zh":"Android 執行環境","n":"Android 的 VM"},{"c":2,"en":"assembler","zh":"組譯器","n":""},{"c":2,"en":"assembly language","zh":"組合語言","n":""},{"c":2,"en":"authentication","zh":"認證","n":""},{"c":2,"en":"background service","zh":"背景服務","n":""},{"c":2,"en":"BCC (BPF Compiler Collection)","zh":"BPF 編譯器集合","n":"Linux 追蹤工具組"},{"c":2,"en":"BIOS","zh":"基本輸入輸出系統","n":""},{"c":2,"en":"boot block","zh":"開機區塊","n":""},{"c":2,"en":"boot loader / bootstrap program","zh":"開機載入器／啟動程式","n":""},{"c":2,"en":"booting","zh":"開機","n":""},{"c":2,"en":"bottleneck","zh":"瓶頸","n":""},{"c":2,"en":"built-in command","zh":"內建命令","n":""},{"c":2,"en":"bytecode","zh":"位元組碼","n":""},{"c":2,"en":"CLI (Command-Line Interface)","zh":"命令列介面","n":""},{"c":2,"en":"command interpreter","zh":"命令直譯器","n":"即 shell"},{"c":2,"en":"compiler","zh":"編譯器","n":""},{"c":2,"en":"core dump","zh":"核心傾印","n":"應用程式失敗"},{"c":2,"en":"crash dump","zh":"當機傾印","n":"OS 失敗"},{"c":2,"en":"daemon","zh":"常駐程式","n":""},{"c":2,"en":"debugger / debugging","zh":"除錯器／除錯","n":""},{"c":2,"en":"desktop metaphor","zh":"桌面隱喻","n":""},{"c":2,"en":"dispatch table","zh":"分派表","n":""},{"c":2,"en":"DLL (Dynamically Linked Library)","zh":"動態連結函式庫","n":""},{"c":2,"en":"dump","zh":"傾印","n":""},{"c":2,"en":"ELF (Executable and Linking Format)","zh":"可執行與連結格式","n":""},{"c":2,"en":"error detection","zh":"錯誤偵測","n":""},{"c":2,"en":"executable file","zh":"可執行檔","n":""},{"c":2,"en":"file descriptor","zh":"檔案描述子","n":""},{"c":2,"en":"gesture","zh":"手勢","n":""},{"c":2,"en":"GRUB (Grand Unified Bootloader)","zh":"—","n":"Linux 的開機載入器"},{"c":2,"en":"GUI (Graphical User Interface)","zh":"圖形使用者介面","n":""},{"c":2,"en":"HAL (Hardware Abstraction Layer)","zh":"硬體抽象層","n":""},{"c":2,"en":"hybrid system","zh":"混合式系統","n":""},{"c":2,"en":"IDT (Interrupt Descriptor Table)","zh":"中斷描述表","n":""},{"c":2,"en":"instrument","zh":"插入探測","n":""},{"c":2,"en":"intercept","zh":"攔截","n":""},{"c":2,"en":"interaction","zh":"互動","n":"投影片譯「互相影響」"},{"c":2,"en":"interpreter","zh":"直譯器","n":""},{"c":2,"en":"IPC (Interprocess Communication)","zh":"行程間通訊","n":""},{"c":2,"en":"JNI (Java Native Interface)","zh":"Java 原生介面","n":""},{"c":2,"en":"JVM (Java Virtual Machine)","zh":"Java 虛擬機器","n":""},{"c":2,"en":"kext (kernel extension)","zh":"核心擴充","n":"macOS 的可載入模組"},{"c":2,"en":"layered approach","zh":"分層式","n":""},{"c":2,"en":"library call","zh":"函式庫呼叫","n":""},{"c":2,"en":"linker","zh":"連結器","n":""},{"c":2,"en":"LKM (Loadable Kernel Module)","zh":"可載入核心模組","n":""},{"c":2,"en":"loader","zh":"載入器","n":""},{"c":2,"en":"lock","zh":"鎖","n":""},{"c":2,"en":"log file / logging","zh":"紀錄檔／紀錄","n":""},{"c":2,"en":"mailbox","zh":"信箱","n":""},{"c":2,"en":"mechanism","zh":"機制","n":"決定 how"},{"c":2,"en":"meld","zh":"融合","n":"投影片譯「使合併；使結合」"},{"c":2,"en":"message passing","zh":"訊息傳遞","n":""},{"c":2,"en":"message queue","zh":"訊息佇列","n":""},{"c":2,"en":"microkernel","zh":"微核心","n":""},{"c":2,"en":"modularity / module","zh":"模組化／模組","n":""},{"c":2,"en":"monolithic","zh":"單體式","n":"投影片譯「獨塊巨石的、整體的、龐大的」"},{"c":2,"en":"mount","zh":"掛載","n":""},{"c":2,"en":"multistage boot","zh":"多階段開機","n":""},{"c":2,"en":"object file","zh":"目的檔","n":""},{"c":2,"en":"overhead","zh":"額外負擔","n":""},{"c":2,"en":"parameter","zh":"參數","n":""},{"c":2,"en":"performance tuning","zh":"效能調校","n":""},{"c":2,"en":"policy","zh":"策略","n":"決定 what"},{"c":2,"en":"port / portability","zh":"移植／可攜性","n":""},{"c":2,"en":"POSIX","zh":"可攜式作業系統介面","n":""},{"c":2,"en":"primitives","zh":"基本操作","n":""},{"c":2,"en":"probe","zh":"探測","n":""},{"c":2,"en":"profiling","zh":"剖析","n":""},{"c":2,"en":"protection","zh":"保護","n":""},{"c":2,"en":"reliability","zh":"可靠度","n":"投影片譯「可靠程度」"},{"c":2,"en":"relocatable object file","zh":"可重定位目的檔","n":""},{"c":2,"en":"relocation","zh":"重定位","n":""},{"c":2,"en":"reposition","zh":"重新定位（讀寫位置）","n":""},{"c":2,"en":"resource allocation","zh":"資源分配","n":""},{"c":2,"en":"root file system","zh":"根檔案系統","n":""},{"c":2,"en":"RTE (Run-Time Environment)","zh":"執行時期環境","n":""},{"c":2,"en":"service routine","zh":"服務常式","n":""},{"c":2,"en":"shared memory","zh":"共享記憶體","n":""},{"c":2,"en":"shell","zh":"殼層","n":""},{"c":2,"en":"sketch","zh":"—","n":"Arduino 程式"},{"c":2,"en":"software interrupt","zh":"軟體中斷","n":""},{"c":2,"en":"subsystem","zh":"子系統","n":""},{"c":2,"en":"synchronization","zh":"同步","n":"投影片譯「使同步、使協調」"},{"c":2,"en":"SYSGEN (System Generation)","zh":"系統生成","n":""},{"c":2,"en":"system call","zh":"系統呼叫","n":""},{"c":2,"en":"system-call interface","zh":"系統呼叫介面","n":""},{"c":2,"en":"system service / system utility","zh":"系統服務／系統公用程式","n":""},{"c":2,"en":"touch-screen interface","zh":"觸控螢幕介面","n":""},{"c":2,"en":"trace listing / tracing","zh":"追蹤列表／追蹤","n":""},{"c":2,"en":"UEFI","zh":"統一可延伸韌體介面","n":""},{"c":2,"en":"user authentication","zh":"使用者認證","n":""},{"c":2,"en":"vantage point","zh":"觀點","n":""},{"c":2,"en":"virtual keyboard","zh":"虛擬鍵盤","n":""},{"c":2,"en":"wrapper routine","zh":"包裝函式","n":""},{"c":3,"en":"accounting information","zh":"記帳資訊","n":""},{"c":3,"en":"address space","zh":"位址空間","n":""},{"c":3,"en":"ALPC (Advanced Local Procedure Call)","zh":"進階本地程序呼叫","n":"Windows 的訊息傳遞設施"},{"c":3,"en":"anonymous pipe","zh":"匿名管道","n":"Windows 的 ordinary pipe"},{"c":3,"en":"asynchronous","zh":"非同步","n":""},{"c":3,"en":"attach","zh":"附加","n":""},{"c":3,"en":"bidirectional","zh":"雙向","n":""},{"c":3,"en":"blocking / nonblocking","zh":"阻塞／非阻塞","n":""},{"c":3,"en":"bounded buffer","zh":"有限緩衝區","n":""},{"c":3,"en":"buffering","zh":"緩衝","n":""},{"c":3,"en":"callback","zh":"回呼","n":""},{"c":3,"en":"cascading termination","zh":"連鎖終止","n":"投影片譯「層疊式的」"},{"c":3,"en":"child process","zh":"子行程","n":""},{"c":3,"en":"communication link","zh":"通訊鏈結","n":""},{"c":3,"en":"conduit","zh":"導管","n":""},{"c":3,"en":"consumer","zh":"消費者","n":""},{"c":3,"en":"context / context switch","zh":"內容／內容切換","n":"也譯「上下文切換」"},{"c":3,"en":"cooperating process","zh":"合作行程","n":""},{"c":3,"en":"copy-on-write","zh":"寫入時複製","n":""},{"c":3,"en":"CPU scheduler","zh":"CPU 排程器","n":""},{"c":3,"en":"data section","zh":"資料區段","n":"全域變數"},{"c":3,"en":"deallocate","zh":"回收／釋放","n":""},{"c":3,"en":"degree of multiprogramming","zh":"多元程式度","n":"記憶體中 process 的數量"},{"c":3,"en":"direct / indirect communication","zh":"直接／間接通訊","n":""},{"c":3,"en":"dispatch","zh":"分派","n":""},{"c":3,"en":"duplicate","zh":"複製品","n":""},{"c":3,"en":"endpoint","zh":"端點","n":""},{"c":3,"en":"entry point","zh":"進入點","n":""},{"c":3,"en":"executable image","zh":"可執行映像檔","n":""},{"c":3,"en":"fetch / decode / execute","zh":"擷取／解碼／執行","n":""},{"c":3,"en":"FIFO","zh":"先進先出","n":"UNIX 的 named pipe 也叫 FIFO"},{"c":3,"en":"full duplex / half duplex","zh":"全雙工／半雙工","n":""},{"c":3,"en":"global variable","zh":"全域變數","n":""},{"c":3,"en":"handle","zh":"控制代碼","n":""},{"c":3,"en":"header","zh":"標頭","n":""},{"c":3,"en":"heap","zh":"堆積","n":"動態配置"},{"c":3,"en":"independent process","zh":"獨立行程","n":""},{"c":3,"en":"IPC (Interprocess Communication)","zh":"行程間通訊","n":""},{"c":3,"en":"loading","zh":"載入","n":""},{"c":3,"en":"local variable","zh":"區域變數","n":""},{"c":3,"en":"localhost","zh":"本機","n":"127.0.0.1"},{"c":3,"en":"mailbox","zh":"信箱","n":""},{"c":3,"en":"marshal / unmarshal","zh":"封送／解封送","n":"打包／解開參數"},{"c":3,"en":"matchmaker","zh":"媒合者","n":""},{"c":3,"en":"memory-mapped file","zh":"記憶體映射檔","n":""},{"c":3,"en":"message passing","zh":"訊息傳遞","n":""},{"c":3,"en":"migrate","zh":"遷移","n":""},{"c":3,"en":"named pipe","zh":"具名管道","n":""},{"c":3,"en":"ordinary pipe","zh":"普通管道","n":""},{"c":3,"en":"orphan process","zh":"孤兒行程","n":""},{"c":3,"en":"overcommitted","zh":"過度配置","n":""},{"c":3,"en":"overhead","zh":"額外負擔","n":""},{"c":3,"en":"paradigm","zh":"典範","n":"投影片譯「範例」"},{"c":3,"en":"parallel computing","zh":"平行運算","n":""},{"c":3,"en":"parameter","zh":"參數","n":""},{"c":3,"en":"parent process","zh":"父行程","n":""},{"c":3,"en":"PCB (Process Control Block)","zh":"行程控制區塊","n":"也稱 task control block"},{"c":3,"en":"pid (process identifier)","zh":"行程識別碼","n":""},{"c":3,"en":"pipe","zh":"管道","n":""},{"c":3,"en":"port","zh":"埠","n":"Mach／Windows 的 mailbox；也指網路埠號"},{"c":3,"en":"priority","zh":"優先權","n":""},{"c":3,"en":"process","zh":"行程","n":""},{"c":3,"en":"process scheduler","zh":"行程排程器","n":""},{"c":3,"en":"process state","zh":"行程狀態","n":""},{"c":3,"en":"producer","zh":"生產者","n":""},{"c":3,"en":"program counter (PC)","zh":"程式計數器","n":""},{"c":3,"en":"proxy","zh":"代理","n":""},{"c":3,"en":"ready queue","zh":"就緒佇列","n":""},{"c":3,"en":"register","zh":"暫存器","n":""},{"c":3,"en":"rendezvous","zh":"會合","n":"投影片譯「約會、集會」"},{"c":3,"en":"return address","zh":"返回位址","n":""},{"c":3,"en":"RPC (Remote Procedure Call)","zh":"遠端程序呼叫","n":""},{"c":3,"en":"shared memory","zh":"共享記憶體","n":""},{"c":3,"en":"socket","zh":"通訊端","n":""},{"c":3,"en":"spawn","zh":"衍生","n":"投影片譯「生育」"},{"c":3,"en":"stack","zh":"堆疊","n":""},{"c":3,"en":"stack pointer (SP)","zh":"堆疊指標","n":""},{"c":3,"en":"stub","zh":"存根","n":""},{"c":3,"en":"subsystem","zh":"子系統","n":""},{"c":3,"en":"swap in / swap out","zh":"置入／置出","n":""},{"c":3,"en":"swapping","zh":"置換","n":""},{"c":3,"en":"synchronization","zh":"同步","n":""},{"c":3,"en":"synchronous","zh":"同步的","n":""},{"c":3,"en":"task","zh":"任務","n":"Mach 中類似 process"},{"c":3,"en":"text section","zh":"文字區段","n":"程式碼"},{"c":3,"en":"thread","zh":"執行緒","n":""},{"c":3,"en":"time slice","zh":"時間片","n":""},{"c":3,"en":"unbounded buffer","zh":"無限緩衝區","n":""},{"c":3,"en":"unidirectional","zh":"單向","n":""},{"c":3,"en":"wait queue","zh":"等待佇列","n":""},{"c":3,"en":"zombie process","zh":"殭屍行程","n":""},{"c":4,"en":"asynchronous cancellation","zh":"非同步取消","n":"立刻終止"},{"c":4,"en":"asynchronous signal","zh":"非同步訊號","n":"外部事件產生"},{"c":4,"en":"balance","zh":"平衡","n":""},{"c":4,"en":"block (GCD)","zh":"區塊","n":"^{ } 包起來的工作"},{"c":4,"en":"blocking system call","zh":"阻塞式系統呼叫","n":""},{"c":4,"en":"bound","zh":"綁定","n":""},{"c":4,"en":"Callable","zh":"—","n":"Java 介面，可回傳結果"},{"c":4,"en":"cancellation point","zh":"取消點","n":""},{"c":4,"en":"cleanup handler","zh":"清理處理常式","n":""},{"c":4,"en":"compiler directive","zh":"編譯器指示","n":"如 #pragma"},{"c":4,"en":"concurrency / concurrent","zh":"並行","n":"投影片譯「同時發生」"},{"c":4,"en":"confer","zh":"給予","n":""},{"c":4,"en":"context","zh":"內容","n":""},{"c":4,"en":"CPU-intensive","zh":"CPU 密集","n":""},{"c":4,"en":"data dependency","zh":"資料相依","n":""},{"c":4,"en":"data parallelism","zh":"資料平行","n":""},{"c":4,"en":"data splitting","zh":"資料分割","n":""},{"c":4,"en":"default signal handler","zh":"預設訊號處理常式","n":""},{"c":4,"en":"deferred cancellation","zh":"延遲取消","n":"預設類型"},{"c":4,"en":"dispatch queue","zh":"分派佇列","n":""},{"c":4,"en":"dividing activities","zh":"劃分活動","n":""},{"c":4,"en":"economy","zh":"經濟","n":""},{"c":4,"en":"ETHREAD","zh":"執行體執行緒區塊","n":"Windows，kernel space"},{"c":4,"en":"Executor","zh":"執行器","n":"Java 介面"},{"c":4,"en":"explicit threading","zh":"顯式執行緒","n":""},{"c":4,"en":"fork-join","zh":"分叉–合併","n":""},{"c":4,"en":"Future","zh":"—","n":"Java，代表尚未完成的結果"},{"c":4,"en":"GCD (Grand Central Dispatch)","zh":"—","n":"Apple 的技術"},{"c":4,"en":"green threads","zh":"綠色執行緒","n":"many-to-one 的例子"},{"c":4,"en":"implicit threading","zh":"隱式執行緒","n":"投影片譯「內含的」"},{"c":4,"en":"interleaved","zh":"交錯","n":""},{"c":4,"en":"intervention","zh":"介入","n":""},{"c":4,"en":"join","zh":"合併／等待結束","n":""},{"c":4,"en":"kernel thread","zh":"核心執行緒","n":""},{"c":4,"en":"KTHREAD","zh":"核心執行緒區塊","n":"Windows，kernel space"},{"c":4,"en":"LWP (Lightweight Process)","zh":"輕量級行程","n":""},{"c":4,"en":"main queue","zh":"主佇列","n":"GCD 的 serial queue"},{"c":4,"en":"main thread","zh":"主執行緒","n":""},{"c":4,"en":"many-to-many model","zh":"多對多模型","n":""},{"c":4,"en":"many-to-one model","zh":"多對一模型","n":""},{"c":4,"en":"multicore","zh":"多核心","n":""},{"c":4,"en":"multiplex","zh":"多工","n":""},{"c":4,"en":"multithreaded","zh":"多執行緒的","n":""},{"c":4,"en":"one-to-one model","zh":"一對一模型","n":""},{"c":4,"en":"OpenMP","zh":"—","n":"平行程式設計 API"},{"c":4,"en":"parallel region","zh":"平行區域","n":""},{"c":4,"en":"parallelism / parallel","zh":"平行","n":""},{"c":4,"en":"pending","zh":"擱置","n":""},{"c":4,"en":"Pthreads","zh":"POSIX 執行緒","n":"IEEE 1003.1c"},{"c":4,"en":"register set","zh":"暫存器組","n":""},{"c":4,"en":"resource sharing","zh":"資源共享","n":""},{"c":4,"en":"responsiveness","zh":"回應性","n":""},{"c":4,"en":"Runnable","zh":"—","n":"Java 介面"},{"c":4,"en":"scalability","zh":"可擴展性","n":""},{"c":4,"en":"scheduler activation","zh":"排程器啟動","n":""},{"c":4,"en":"serial queue","zh":"循序佇列","n":""},{"c":4,"en":"signal","zh":"訊號","n":""},{"c":4,"en":"signal handler","zh":"訊號處理常式","n":""},{"c":4,"en":"single-threaded","zh":"單執行緒的","n":""},{"c":4,"en":"specification vs. implementation","zh":"規格 vs. 實作","n":""},{"c":4,"en":"synchronous signal","zh":"同步訊號","n":"即 exception"},{"c":4,"en":"target thread","zh":"目標執行緒","n":""},{"c":4,"en":"task","zh":"任務","n":"Linux 對 process／thread 的統稱"},{"c":4,"en":"task parallelism","zh":"任務平行","n":""},{"c":4,"en":"TBB (Threading Building Blocks)","zh":"執行緒建構區塊","n":"Intel 的 C++ 樣板函式庫"},{"c":4,"en":"TEB","zh":"執行緒環境區塊","n":"Windows，user space"},{"c":4,"en":"template library","zh":"樣板函式庫","n":""},{"c":4,"en":"thread","zh":"執行緒","n":""},{"c":4,"en":"thread cancellation","zh":"執行緒取消","n":""},{"c":4,"en":"thread ID","zh":"執行緒識別碼","n":""},{"c":4,"en":"thread library","zh":"執行緒函式庫","n":""},{"c":4,"en":"thread of control","zh":"控制執行緒","n":""},{"c":4,"en":"thread pool","zh":"執行緒池","n":""},{"c":4,"en":"throughput","zh":"產能","n":""},{"c":4,"en":"TLS (Thread-Local Storage)","zh":"執行緒區域儲存","n":""},{"c":4,"en":"two-level model","zh":"二階層模型","n":""},{"c":4,"en":"upcall","zh":"向上呼叫","n":"kernel → thread library"},{"c":4,"en":"upcall handler","zh":"向上呼叫處理常式","n":""},{"c":4,"en":"user thread","zh":"使用者執行緒","n":""},{"c":4,"en":"user-defined signal handler","zh":"使用者自訂訊號處理常式","n":""},{"c":4,"en":"variation","zh":"變種","n":""},{"c":4,"en":"virtual processor","zh":"虛擬處理器","n":""},{"c":5,"en":"admission control","zh":"准入控制","n":"能保證才接受"},{"c":5,"en":"affinity","zh":"親和性","n":"投影片譯「喜好、傾向」"},{"c":5,"en":"aging","zh":"老化","n":"解決 starvation"},{"c":5,"en":"arrival rate","zh":"到達率","n":"Little's formula 的 λ"},{"c":5,"en":"arrival time","zh":"到達時間","n":""},{"c":5,"en":"asymmetric multiprocessing","zh":"非對稱式多處理","n":"master server"},{"c":5,"en":"average waiting time","zh":"平均等待時間","n":"本章主要比較標準"},{"c":5,"en":"background process","zh":"背景行程","n":"批次"},{"c":5,"en":"base priority","zh":"基礎優先權","n":"Windows"},{"c":5,"en":"batch process","zh":"批次行程","n":""},{"c":5,"en":"boost","zh":"提升","n":"Windows 的優先權加成"},{"c":5,"en":"burst time","zh":"爆發時間","n":"一次 CPU burst 的長度"},{"c":5,"en":"cache miss","zh":"快取未命中","n":""},{"c":5,"en":"CFS (Completely Fair Scheduler)","zh":"完全公平排程器","n":"Linux 2.6.23+"},{"c":5,"en":"CMT (Chip-Multithreading)","zh":"晶片多執行緒","n":""},{"c":5,"en":"completion time","zh":"完成時間","n":""},{"c":5,"en":"convoy effect","zh":"護送效應","n":"FCFS 的問題"},{"c":5,"en":"cooperative","zh":"合作式","n":"即 nonpreemptive"},{"c":5,"en":"CPU burst","zh":"CPU 爆發","n":""},{"c":5,"en":"CPU scheduler","zh":"CPU 排程器","n":""},{"c":5,"en":"CPU utilization","zh":"CPU 使用率","n":""},{"c":5,"en":"CPU-bound","zh":"CPU 密集型","n":"少數長 burst"},{"c":5,"en":"CPU–I/O burst cycle","zh":"CPU–I/O 爆發週期","n":""},{"c":5,"en":"deadline","zh":"截止期限","n":""},{"c":5,"en":"decay factor","zh":"衰減係數","n":"CFS"},{"c":5,"en":"demote","zh":"降級","n":""},{"c":5,"en":"deterministic modeling","zh":"決定性模型","n":"投影片譯「既定性的、決定性的」"},{"c":5,"en":"dispatch latency","zh":"分派延遲","n":""},{"c":5,"en":"dispatch table","zh":"分派表","n":"Solaris"},{"c":5,"en":"dispatcher","zh":"分派器","n":""},{"c":5,"en":"distribution-driven simulation","zh":"分布驅動模擬","n":""},{"c":5,"en":"EDF (Earliest-Deadline-First)","zh":"最早截止期限優先","n":"動態優先權"},{"c":5,"en":"empirically","zh":"依經驗地","n":"投影片譯「憑經驗地」"},{"c":5,"en":"event latency","zh":"事件延遲","n":""},{"c":5,"en":"event-driven","zh":"事件驅動","n":""},{"c":5,"en":"exponential average","zh":"指數平均","n":"預測 burst 長度"},{"c":5,"en":"external priority","zh":"外部優先權","n":""},{"c":5,"en":"FCFS (First-Come, First-Served)","zh":"先到先服務","n":""},{"c":5,"en":"fixed-priority preemptive scheduling","zh":"固定優先權可搶占排程","n":"multilevel queue 之間"},{"c":5,"en":"foreground process","zh":"前景行程","n":"互動式"},{"c":5,"en":"Gantt chart","zh":"甘特圖","n":""},{"c":5,"en":"hard affinity","zh":"硬親和性","n":""},{"c":5,"en":"hard real-time","zh":"硬即時","n":""},{"c":5,"en":"hardware thread","zh":"硬體執行緒","n":""},{"c":5,"en":"heterogeneous","zh":"異質性","n":""},{"c":5,"en":"homogeneous","zh":"同質性","n":""},{"c":5,"en":"hyperthreading","zh":"超執行緒","n":"Intel 的 CMT"},{"c":5,"en":"I/O burst","zh":"I/O 爆發","n":""},{"c":5,"en":"I/O-bound","zh":"I/O 密集型","n":"很多短 burst"},{"c":5,"en":"idle thread","zh":"閒置執行緒","n":"Windows"},{"c":5,"en":"indefinite blocking","zh":"無限期阻塞","n":"即 starvation"},{"c":5,"en":"internal priority","zh":"內部優先權","n":""},{"c":5,"en":"interrupt latency","zh":"中斷延遲","n":""},{"c":5,"en":"Little's formula","zh":"Little 公式","n":"n = λ × W"},{"c":5,"en":"load balancing","zh":"負載平衡","n":""},{"c":5,"en":"load sharing","zh":"負載分擔","n":""},{"c":5,"en":"logical processor","zh":"邏輯處理器","n":""},{"c":5,"en":"long-term scheduling","zh":"長期排程","n":""},{"c":5,"en":"master server","zh":"主伺服器","n":""},{"c":5,"en":"memory stall","zh":"記憶體停滯","n":""},{"c":5,"en":"multicore","zh":"多核心","n":""},{"c":5,"en":"multilevel feedback queue","zh":"多層回饋佇列","n":"最通用"},{"c":5,"en":"multilevel queue","zh":"多層佇列","n":""},{"c":5,"en":"nice value","zh":"nice 值","n":"Linux，−20 ~ +19，越小越優先"},{"c":5,"en":"nonpreemptive","zh":"不可搶占","n":""},{"c":5,"en":"NUMA-aware","zh":"NUMA 感知","n":""},{"c":5,"en":"O(1) scheduler","zh":"O(1) 排程器","n":"Linux 2.5"},{"c":5,"en":"optimal","zh":"最佳的","n":""},{"c":5,"en":"PCS (Process-Contention Scope)","zh":"行程競爭範圍","n":""},{"c":5,"en":"period","zh":"週期","n":""},{"c":5,"en":"periodic","zh":"週期性的","n":""},{"c":5,"en":"permanently","zh":"永久地","n":""},{"c":5,"en":"preemptive","zh":"可搶占","n":""},{"c":5,"en":"priority class","zh":"優先權類別","n":"Windows"},{"c":5,"en":"priority number","zh":"優先權數字","n":""},{"c":5,"en":"priority scheduling","zh":"優先權排程","n":""},{"c":5,"en":"processing time","zh":"處理時間","n":"週期性工作的 t"},{"c":5,"en":"processor affinity","zh":"處理器親和性","n":""},{"c":5,"en":"proportional share scheduling","zh":"比例分配排程","n":"投影片譯「成比例的」"},{"c":5,"en":"pull migration","zh":"拉取遷移","n":""},{"c":5,"en":"push migration","zh":"推送遷移","n":""},{"c":5,"en":"queueing model","zh":"佇列模型","n":""},{"c":5,"en":"race condition","zh":"競爭條件","n":""},{"c":5,"en":"rate","zh":"速率","n":"1/p"},{"c":5,"en":"rate-monotonic scheduling","zh":"速率單調排程","n":"投影片譯「速率、單調的」"},{"c":5,"en":"ready queue","zh":"就緒佇列","n":""},{"c":5,"en":"real-time class","zh":"即時類別","n":"Windows 16–31"},{"c":5,"en":"red-black tree","zh":"紅黑樹","n":"CFS"},{"c":5,"en":"relative priority","zh":"相對優先權","n":"Windows"},{"c":5,"en":"response time","zh":"回應時間","n":""},{"c":5,"en":"Round-Robin (RR)","zh":"輪流排程","n":""},{"c":5,"en":"runqueue","zh":"執行佇列","n":""},{"c":5,"en":"SCHED_FIFO / SCHED_RR","zh":"—","n":"POSIX 即時排程類別"},{"c":5,"en":"scheduling class","zh":"排程類別","n":"Linux CFS"},{"c":5,"en":"scheduling criteria","zh":"排程準則","n":""},{"c":5,"en":"scheduling domain","zh":"排程網域","n":"Linux"},{"c":5,"en":"SCS (System-Contention Scope)","zh":"系統競爭範圍","n":""},{"c":5,"en":"self-scheduling","zh":"自我排程","n":"SMP"},{"c":5,"en":"service rate","zh":"服務率","n":""},{"c":5,"en":"shares","zh":"份數","n":"proportional share"},{"c":5,"en":"short-term scheduling","zh":"短期排程","n":"即 CPU 排程"},{"c":5,"en":"simulation","zh":"模擬","n":""},{"c":5,"en":"SJF (Shortest-Job-First)","zh":"最短工作優先","n":""},{"c":5,"en":"SMP (Symmetric Multiprocessing)","zh":"對稱式多處理","n":""},{"c":5,"en":"soft affinity","zh":"軟親和性","n":""},{"c":5,"en":"soft real-time","zh":"軟即時","n":""},{"c":5,"en":"SRTF (Shortest-Remaining-Time-First)","zh":"最短剩餘時間優先","n":"preemptive SJF"},{"c":5,"en":"starvation","zh":"飢餓","n":""},{"c":5,"en":"static priority","zh":"靜態優先權","n":""},{"c":5,"en":"target latency","zh":"目標延遲","n":"CFS"},{"c":5,"en":"throughput","zh":"產能","n":""},{"c":5,"en":"time quantum / time slice","zh":"時間配額／時間片","n":""},{"c":5,"en":"trace tape","zh":"追蹤磁帶","n":""},{"c":5,"en":"tractable","zh":"易處理的","n":""},{"c":5,"en":"turnaround time","zh":"回復時間","n":"周轉時間"},{"c":5,"en":"UMS (User-Mode Scheduling)","zh":"使用者模式排程","n":"Windows 7"},{"c":5,"en":"upgrade","zh":"升級","n":""},{"c":5,"en":"variable class","zh":"可變類別","n":"Windows 1–15"},{"c":5,"en":"virtual run time (vruntime)","zh":"虛擬執行時間","n":"CFS"},{"c":5,"en":"waiting time","zh":"等待時間","n":""}],"concepts":[{"c":1,"f":"OS 會在哪四個時機開始執行？","b":"(1) 系統開機　(2) 發生 interrupt　(3) 發生 exception　(4) 發生 system call。\n每次都從 user mode 切到 kernel mode，處理完再切回來。"},{"c":1,"f":"Interrupt 與 trap 有什麼不同？","b":"Interrupt 通常由硬體產生，與目前執行的指令無關。\nTrap（exception）由軟體產生，原因是錯誤（如除以零）或 system call。"},{"c":1,"f":"中斷發生後，CPU 如何找到處理程式並回到原本的工作？","b":"先保存被中斷指令的位址 → 查 interrupt vector 取得 ISR 的位址 → 執行 ISR → 回到被中斷的程式。"},{"c":1,"f":"Storage hierarchy 由快到慢的順序？哪幾層是 volatile？","b":"registers → cache → main memory → nonvolatile memory → hard-disk drives → optical disk → magnetic tapes。\n前三層是 volatile。"},{"c":1,"f":"Multiprocessor system 與 clustered system 差在哪裡？","b":"Multiprocessor：多個 CPU 在同一台機器內，共享 bus 與 memory。\nClustered：多台獨立機器（node）以網路連結，共享儲存。"},{"c":1,"f":"Single tasking、multiprogramming、multitasking 的切換時機？","b":"Single tasking：不切換。\nMultiprogramming：目前的 process 需要等待時才切換。\nMultitasking：時間片用完就切換。"},{"c":1,"f":"Timer 解決什麼問題？","b":"防止使用者程式霸佔 CPU（例如無窮迴圈）。計數器倒數到 0 就產生中斷，讓 OS 取回控制權。設定 timer 是 privileged instruction。"},{"c":1,"f":"Program 與 process 的差別？","b":"Program 是被動實體，是磁碟上的檔案。\nProcess 是主動實體，是執行中的程式，需要 CPU time、memory、I/O、files 等資源。"},{"c":1,"f":"Virtualization 與 emulation 的差別？","b":"Virtualization：guest 與 host 的 CPU 類型相同，速度較快。\nEmulation：來源與目標 CPU 類型不同，用軟體模擬硬體，最慢（例如 Rosetta）。"},{"c":1,"f":"SaaS、PaaS、IaaS 各提供什麼？","b":"SaaS：應用程式（文書處理、試算表）。\nPaaS：現成可用的軟體堆疊（資料庫伺服器）。\nIaaS：伺服器或儲存空間。"},{"c":2,"f":"OS 服務分成哪兩組？","b":"對使用者有幫助的：UI、program execution、I/O operations、file-system manipulation、communications、error detection。\n確保系統有效率運作的：resource allocation、logging、protection and security。"},{"c":2,"f":"實作命令的兩種方式？","b":"(1) 內建：直譯器本身包含執行命令的程式碼。\n(2) 系統程式：命令是程式檔名，shell 載入後執行。UNIX 採用第二種，新增命令不必改 shell。"},{"c":2,"f":"一次 system call 的四個步驟？","b":"① trap 進入 kernel\n② 查 dispatch table\n③ 執行 service routine\n④ 返回 user program"},{"c":2,"f":"傳遞 system call 參數的三種方法？","b":"(1) 直接放在暫存器（數量受限）。\n(2) 放在記憶體的 block，暫存器傳位址（Linux、Solaris）。\n(3) push 到 stack，由 OS pop 出來。"},{"c":2,"f":"System call 的六大類別？","b":"Process control、file manipulation、device manipulation、information maintenance、communications、protection。"},{"c":2,"f":"從原始碼到在記憶體中執行，要經過哪些步驟？","b":"source → compiler → object file → linker（加入其他 object file 與函式庫）→ executable → loader（加入動態連結函式庫）→ program in memory。"},{"c":2,"f":"讓應用程式能在多個 OS 上執行的三種方法？","b":"(1) 用直譯式語言寫（Python、Ruby）。\n(2) 用含有 VM 的語言寫（Java）。\n(3) 用標準語言寫，在每個 OS 上分別編譯（C）。"},{"c":2,"f":"五種 OS 結構是什麼？","b":"Monolithic、layered、microkernel、modules、hybrid。\n現實中的 OS（Linux、Windows、macOS、Android）大多是 hybrid。"},{"c":2,"f":"Modules 方式與 layered、microkernel 各有什麼異同？","b":"像 layered：各部分有明確的受保護介面；但更有彈性，任何模組可呼叫任何模組。\n像 microkernel：主模組只有核心功能；但更有效率，不需 message passing。"},{"c":2,"f":"BIOS 與 UEFI 的差別？","b":"BIOS：多階段開機，較慢。\nUEFI：單一完整的 boot manager，較快，對 64 位元系統與大容量磁碟支援較好。"},{"c":3,"f":"Process 在記憶體中的四個區段？","b":"text（程式碼）、data（全域變數）、heap（動態配置，往高位址長）、stack（參數、返回位址、區域變數，往低位址長）。"},{"c":3,"f":"Process 的五種狀態？","b":"new、ready、running、waiting、terminated。\nReady 是只缺 CPU；waiting 是在等事件，給 CPU 也不能跑。"},{"c":3,"f":"PCB 記錄哪些資訊？","b":"Process state、program counter、CPU registers、CPU 排程資訊、記憶體管理資訊、記帳資訊、I/O 狀態資訊。"},{"c":3,"f":"什麼是 swapping？什麼時候需要？","b":"把 process 從記憶體移到磁碟（swap out），之後再搬回來（swap in），用來降低 degree of multiprogramming。\n通常只在記憶體被過度配置時才需要。"},{"c":3,"f":"OS 建立一個 process 的步驟？","b":"配置記憶體 → 載入 executable image → 設定 PCB（PC 設為 entry point）→ 把 PCB 串到 ready queue。"},{"c":3,"f":"fork()、exec()、wait() 各做什麼？","b":"fork()：複製出一個 child process。\nexec()：把 process 的記憶體換成新程式。\nwait()：parent 等待 child 結束並取得其狀態。"},{"c":3,"f":"Cooperating process 存在的三個原因？","b":"Information sharing、computation speedup（需要多核心）、modularity。"},{"c":3,"f":"Bounded buffer 的「空」與「滿」如何判斷？","b":"空：in == out\n滿：((in + 1) % BUFFER_SIZE) == out\n所以最多只能放 BUFFER_SIZE − 1 個項目。"},{"c":3,"f":"Direct 與 indirect communication 的差別？","b":"Direct：明確指名對方 process；一條 link 剛好關聯兩個 process。\nIndirect：透過 mailbox（port）；一條 link 可關聯兩個以上的 process。"},{"c":3,"f":"Ordinary pipe 與 named pipe 的差別？","b":"Ordinary：單向，需要 parent–child 關係，process 結束就消失。\nNamed：雙向，不需親屬關係，持續存在直到被刪除。"},{"c":4,"f":"Thread 自己擁有什麼？與同 process 的其他 thread 共享什麼？","b":"自己有：thread ID、program counter、register set、stack。\n共享：code section、data section、open files、signals。"},{"c":4,"f":"Multithreading 的四大好處？","b":"Responsiveness（回應性）、resource sharing（資源共享）、economy（經濟）、scalability（可擴展性）。"},{"c":4,"f":"Concurrency 與 parallelism 的差別？","b":"Concurrency：所有工作都有進展，可以靠快速切換達成，單核心也行。\nParallelism：真的同時執行，需要多核心。"},{"c":4,"f":"多核心程式設計的五大挑戰？","b":"Dividing activities、balance、data splitting、data dependency、testing and debugging。"},{"c":4,"f":"三種 multithreading model 各是什麼？","b":"Many-to-one：多個 user thread 對一個 kernel thread。\nOne-to-one：每個 user thread 對一個 kernel thread。\nMany-to-many：多個 user thread 對較少或相等數量的 kernel thread。"},{"c":4,"f":"Java 建立 thread 的兩種方式？哪一種是標準做法？","b":"(1) 繼承 Thread 類別。\n(2) 實作 Runnable 介面（標準做法）。"},{"c":4,"f":"什麼是 implicit threading？有哪五種方法？","b":"Thread 的建立與管理交給 compiler 與 run-time library。\nThread pools、fork-join、OpenMP、Grand Central Dispatch、Intel TBB。"},{"c":4,"f":"Multithreaded process 收到 signal 時，可以送給誰？","b":"(1) signal 所適用的那個 thread。\n(2) process 中的每個 thread。\n(3) 某些 thread。\n(4) 指定一個專門接收所有 signal 的 thread。"},{"c":4,"f":"Thread-local storage 與區域變數、全域變數有何不同？","b":"區域變數只在單次函式呼叫內可見。\nTLS 跨函式呼叫都可見，而且每個 thread 各有一份。\n全域變數由所有 thread 共享。"},{"c":4,"f":"LWP 與 upcall 是什麼？","b":"LWP：user thread 與 kernel thread 之間的中間結構，對 thread library 而言像虛擬處理器。\nUpcall：kernel 通知 thread library 的機制，方向與 system call 相反。"},{"c":5,"f":"CPU 排程決策會在哪些狀態轉換時發生？哪些是 nonpreemptive 也會排程的？","b":"(1) running → waiting\n(2) running → ready\n(3) waiting → ready\n(4) terminates\nNonpreemptive 只在 (1) 與 (4) 排程；其他也排程的就是 preemptive。"},{"c":5,"f":"CPU scheduler 與 dispatcher 的差別？什麼是 dispatch latency？","b":"Scheduler 決定下一個執行誰；dispatcher 負責 context switch、切回 user mode、跳到程式位置。\nDispatch latency 是停止一個 process 並開始另一個所花的時間。"},{"c":5,"f":"五個排程準則各要最大化還是最小化？","b":"最大化：CPU utilization、throughput。\n最小化：turnaround time、waiting time、response time。"},{"c":5,"f":"Turnaround time 與 waiting time 怎麼算？","b":"Turnaround = completion − arrival\nWaiting = turnaround − burst\n＝ completion − arrival − burst"},{"c":5,"f":"哪些排程演算法可以搶占？","b":"FCFS：不可。\nSJF、priority：兩種都有（preemptive SJF 稱為 SRTF）。\nRR、multilevel queue、multilevel feedback queue：可搶占。"},{"c":5,"f":"預測下一次 CPU burst 的公式？α = 0 與 α = 1 代表什麼？","b":"τ(n+1) = α·t(n) + (1 − α)·τ(n)\nα = 0：預測不變，最近的實際值不算。\nα = 1：只看最後一次實際 burst。"},{"c":5,"f":"RR 的 time quantum 太大或太小會怎樣？","b":"太大（q → ∞）：變成 FCFS。\n太小：context switch 次數太多。\nq 應遠大於 context switch 時間，通常 10–100 ms；n 個 process 時每個最多等 (n − 1)q。"},{"c":5,"f":"定義一個 multilevel feedback queue 需要哪些參數？","b":"佇列數量、每個佇列的演算法、何時升級、何時降級、process 需要服務時進入哪個佇列。"},{"c":5,"f":"PCS 與 SCS 的差別？","b":"PCS：thread library 把 user thread 排到 LWP，同一 process 內競爭。\nSCS：kernel 把 kernel thread 排到 CPU，全系統競爭。One-to-one 的系統（Windows、Linux）只用 SCS。"},{"c":5,"f":"Load balancing 的兩種方法？processor affinity 的兩種形式？","b":"Push migration：定期檢查，把工作推給閒的處理器。\nPull migration：閒的處理器去拉工作。\nSoft affinity：盡量留在同一處理器。Hard affinity：用 system call 指定處理器。"},{"c":5,"f":"RMS 與 EDF 的差別？","b":"RMS：靜態優先權，週期越短越高；N 個 process 的使用率上限 N(2^(1/N) − 1)，N = 2 約 83%。\nEDF：動態優先權，deadline 越早越高；不需週期性，理論上可達 100%。"},{"c":5,"f":"評估排程演算法的四種方法？","b":"Deterministic modeling（固定負載計算）、queueing models（Little's formula 等數學分析）、simulations（含 trace tape）、implementation（寫進 OS，最準但最貴）。"}],"quiz":[{"c":1,"q":"作業系統被稱為 resource allocator 與 control program。其中 control program 指的是什麼？","o":["管理使用者程式的執行，防止錯誤與不當使用電腦","在多個互相衝突的請求之間公平地分配資源","把原始碼翻譯成機器碼","在開機時把 kernel 載入記憶體"],"a":0,"e":"Control program 管制程式的執行；在衝突請求間分配資源的是 resource allocator。"},{"c":1,"q":"關於 kernel 最常見的定義是哪一個？","o":["電腦上隨時都在執行的那一個程式","廠商出貨時附帶的所有軟體","使用者登入後看到的桌面環境","存放在 ROM 中的開機程式"],"a":0,"e":"較常見的定義是：OS 是隨時在執行的那個程式，即 kernel。其餘分為 system programs 與 application programs。"},{"c":1,"q":"Bootstrap program 通常存放在哪裡？它的主要工作是什麼？","o":["ROM 或 EEPROM；初始化系統並把 kernel 載入記憶體","硬碟的使用者目錄；啟動圖形介面","RAM；替應用程式配置記憶體","CPU 的 cache；加速指令執行"],"a":0,"e":"Bootstrap program 屬於 firmware，存於 ROM／EEPROM，負責初始化並載入 kernel 後開始執行 OS。"},{"c":1,"q":"Interrupt vector 裡存放的是什麼？","o":["各個 interrupt service routine 的位址","被中斷程式的區域變數","每個裝置的資料緩衝區","所有使用者的帳號資料"],"a":0,"e":"Interrupt vector 是一張位址表，CPU 依中斷編號查表後跳到對應的 ISR。"},{"c":1,"q":"相較於 interrupt-driven I/O，DMA 的特點是什麼？","o":["裝置控制器直接把整個 block 搬進記憶體，每個 block 只產生一次中斷","每傳一個 byte 就中斷 CPU 一次","完全不需要 device controller","資料必須先經過 CPU 的暫存器才能進記憶體"],"a":0,"e":"DMA 不需 CPU 介入搬資料，CPU 可同時做其他事；每個 block 只中斷一次。"},{"c":1,"q":"下列哪一種儲存屬於 volatile（揮發性）？","o":["Main memory","Hard-disk drive","Magnetic tape","Optical disk"],"a":0,"e":"Registers、cache、main memory 是揮發性儲存，斷電後資料消失；其餘為非揮發性。"},{"c":1,"q":"Symmetric multiprocessing（SMP）的特徵是什麼？","o":["每個處理器地位對等，都能執行 OS 功能與使用者 process","由一個 boss 處理器分派工作給 worker 處理器","每台機器只有一個處理器，以網路相連","只有一個處理器可以執行 kernel 程式碼"],"a":0,"e":"Boss–worker 的分工是 asymmetric multiprocessing；多台機器以網路相連是 clustered system。"},{"c":1,"q":"Multiprogramming 的主要目的是什麼？","o":["讓 CPU 永遠有程式可執行，提高 CPU utilization","讓每位使用者都得到相同的執行時間","讓單一程式跑得比原本更快","減少程式佔用的記憶體"],"a":0,"e":"Multiprogramming 在目前的 process 需要等待時切換到另一個，避免 CPU 閒置。"},{"c":1,"q":"Multitasking（time-sharing）與 multiprogramming 最大的差別是什麼？","o":["切換非常頻繁（時間片用完就換），以提供快速的 response time","記憶體中一次只放一個程式","不需要 CPU scheduling","只能在多處理器系統上實作"],"a":0,"e":"Multitasking 是 multiprogramming 的邏輯延伸，重點在讓使用者感覺反應很快。"},{"c":1,"q":"關於 dual-mode operation 的 mode bit，何者正確？","o":["kernel mode 為 0，user mode 為 1","kernel mode 為 1，user mode 為 0","兩者都是 1，由軟體另外區分","mode bit 只在開機時使用一次"],"a":0,"e":"Mode bit 由硬體提供：0 代表 kernel mode，1 代表 user mode。"},{"c":1,"q":"投影片的四個 Program Misbehavior 範例中，哪一個不會產生 exception，必須靠 timer 才能處理？","o":["while(1){} 無窮迴圈","a = 5/0 除以零","對位址 0 附近寫入資料","寫入 malloc(10) 之外很遠的位置"],"a":0,"e":"無窮迴圈不是非法指令，CPU 偵測不到錯誤；OS 靠 timer interrupt 才能取回 CPU 控制權。"},{"c":1,"q":"如果程式在 user mode 嘗試執行 privileged instruction，會發生什麼事？","o":["硬體視為非法並 trap 到 OS","指令照常執行，但速度較慢","系統自動切換到 kernel mode 後繼續執行","該指令被忽略，程式繼續往下執行"],"a":0,"e":"特權指令只能在 kernel mode 執行；在 user mode 執行會被硬體攔下並交給 OS 處理。"},{"c":1,"q":"下列哪一個是 Type 2 hypervisor？","o":["VirtualBox","VMware ESX","Citrix XenServer","Rosetta"],"a":0,"e":"Type 2 以應用程式形式跑在 host OS 上（VirtualBox、VMware Workstation）。ESX 與 XenServer 是 Type 1；Rosetta 是 emulator。"},{"c":1,"q":"Hash function 為 H(X) = X % 8。X = 6 與 X = 14 的結果說明了什麼？","o":["兩者都得到 6，發生 hash collision","分別得到 6 與 7，沒有衝突","兩者都得到 0","14 超出範圍，無法計算"],"a":0,"e":"6 % 8 = 6、14 % 8 = 6，不同輸入得到相同輸出，稱為 hash collision。"},{"c":1,"q":"Bitmap 為 001011101（由位置 0 開始，0 表示可用）。哪些資源可用？","o":["0、1、3、7","2、4、5、6、8","0、1、2、3","1、3、5、7"],"a":0,"e":"位置 0、1、3、7 的 bit 是 0，所以可用；其餘位置的 bit 是 1，表示已佔用。"},{"c":2,"q":"在 UNIX 輸入 rm file.txt 時，shell 實際做了什麼？","o":["找到名為 rm 的系統程式，載入記憶體執行，並把 file.txt 當參數傳入","執行 shell 內建的刪除檔案程式碼","直接修改磁碟上的目錄區塊","把命令轉交給 GUI 處理"],"a":0,"e":"UNIX 的大多數命令是系統程式的檔名，所以新增命令不需要修改 shell。"},{"c":2,"q":"程式設計師通常透過 API 而不是直接使用 system call，主要原因是什麼？","o":["程式可攜性較好，而且實際的 system call 較瑣碎難用","API 的執行速度一定比 system call 快","System call 只能用組合語言呼叫","API 不需要進入 kernel mode"],"a":0,"e":"同一份程式可以在支援相同 API 的系統上編譯執行；API 也隱藏了 system call 的細節。"},{"c":2,"q":"C 程式呼叫 printf() 時，最後會由哪一個 system call 完成輸出？","o":["write()","read()","fork()","open()"],"a":0,"e":"printf() 是 library call，標準 C 函式庫會再呼叫 write() system call。"},{"c":2,"q":"在 32 位元 x86 的 Linux 上，使用者 process 用哪一個軟體中斷編號發出 system call？","o":["0x80","0x00","0x21","0xFF"],"a":0,"e":"標準 C 函式庫把參數放進暫存器後觸發 int 0x80，system_call 函式即為其中斷處理常式。"},{"c":2,"q":"Linux 與 Solaris 傳遞 system call 參數時採用哪種方式？","o":["把參數放在記憶體的 block 中，再用暫存器傳遞該 block 的位址","把所有參數寫進暫存檔","一律用環境變數傳遞","只允許最多一個參數"],"a":0,"e":"三種方法為：直接放暫存器、block／table 的位址放暫存器、push 到 stack。Linux 與 Solaris 用第二種。"},{"c":2,"q":"Windows 的 CreateProcess() 對應到 Unix 的哪一個 system call？","o":["fork()","open()","pipe()","chmod()"],"a":0,"e":"兩者都屬於 process control 類別。open() 對應 CreateFile()，pipe() 對應 CreatePipe()。"},{"c":2,"q":"chmod()、umask()、chown() 屬於哪一類 system call？","o":["Protection","Process control","Communications","Information maintenance"],"a":0,"e":"這三個都用來設定存取權限，屬於 protection 類別。"},{"c":2,"q":"關於 message passing 與 shared memory，何者正確？","o":["Message passing 適合交換少量資料，也較容易用於跨電腦通訊","Shared memory 每次存取都必須經過 kernel","Message passing 的速度一定比 shared memory 快","Shared memory 不需要考慮同步問題"],"a":0,"e":"Shared memory 速度最快但要自行處理 protection 與 synchronization；message passing 每次都經 kernel。"},{"c":2,"q":"Linker 的工作是什麼？","o":["把多個 relocatable object file 與函式庫合併成單一可執行檔","把原始碼翻譯成 object file","把可執行檔載入記憶體並開始執行","在執行時偵測記憶體錯誤"],"a":0,"e":"Compiler 產生 object file，linker 合併成 executable，loader 再把它載入記憶體。"},{"c":2,"q":"「timer 是確保 CPU 保護的工具，而某個使用者的 timer 要設多久是另一回事。」後者屬於什麼？","o":["Policy","Mechanism","Implementation","Middleware"],"a":0,"e":"Mechanism 決定如何做（how），policy 決定做什麼（what）。兩者分開可以在改變策略時保有彈性。"},{"c":2,"q":"Monolithic kernel 至今仍被廣泛採用，主要原因是什麼？","o":["效能好：system call 的 overhead 小，kernel 內部通訊快","最容易擴充與維護","任一元件當掉都不會影響其他部分","kernel 的體積最小"],"a":0,"e":"Monolithic 的缺點是難以實作與擴充，但速度與效率是它的明顯優勢。"},{"c":2,"q":"Microkernel 架構中，user space 的各項服務之間如何溝通？它的主要缺點是什麼？","o":["透過 message passing；缺點是效能因額外負擔而下降","直接呼叫彼此的函式；缺點是不安全","透過共用全域變數；缺點是難以移植","透過 loadable module；缺點是必須重開機"],"a":0,"e":"Microkernel 易擴充、易移植、較安全可靠，但 user space 與 kernel space 之間的通訊帶來效能負擔。"},{"c":2,"q":"相較於直接修改 Linux kernel 原始碼，使用 loadable kernel module（LKM）的好處是什麼？","o":["模組可單獨編譯，執行期間用 insmod／rmmod 載入與卸載，不必重開機","模組在 user space 執行，所以比較安全","模組之間必須用 message passing 溝通","載入後 kernel 的大小會永久增加"],"a":0,"e":"LKM 是 kernel 的一部分（不是 process），可隨時卸載，不會永久影響 kernel 大小。"},{"c":2,"q":"Layered approach 的主要優點與主要困難分別是什麼？","o":["優點是建構與除錯簡單；困難是必須仔細規劃每一層的功能","優點是效能最好；困難是無法除錯","優點是不需要 kernel mode；困難是不支援多工","優點是模組可動態載入；困難是要重開機"],"a":0,"e":"每層只能使用下層的服務，所以層的定義要很小心；層數越多 overhead 也越大。"},{"c":2,"q":"應用程式當掉時產生的 core dump 與 OS 當機時產生的 crash dump，內容有何不同？","o":["Core dump 存該 process 的記憶體；crash dump 存 kernel 的記憶體","Core dump 存 kernel 記憶體；crash dump 存 process 記憶體","兩者內容相同，只是檔名不同","兩者都只記錄錯誤發生的時間"],"a":0,"e":"Core dump 對應應用程式失敗；crash dump 對應作業系統失敗。"},{"c":3,"q":"程式中用 malloc(1000) 配置的記憶體位於 process 的哪一個區段？","o":["Heap","Stack","Data section","Text section"],"a":0,"e":"Heap 存放執行期間動態配置的記憶體；stack 存放參數、返回位址與區域變數。"},{"c":3,"q":"全域變數 int a = 3; 存放在哪一個區段？","o":["Data section","Stack","Heap","Text section"],"a":0,"e":"Data section 存放全域變數；text section 存放程式碼。"},{"c":3,"q":"處於 waiting 狀態的 process，等待的 I/O 完成後會進入哪一個狀態？","o":["Ready","Running","New","Terminated"],"a":0,"e":"Waiting 不會直接回到 running，必須先回 ready，再等 scheduler dispatch。"},{"c":3,"q":"哪一個事件會讓 process 從 running 回到 ready？","o":["發生 interrupt（例如時間片用完）","發出 I/O 請求","呼叫 exit()","等待子行程結束"],"a":0,"e":"I/O 請求或等待事件會進入 waiting；exit 會進入 terminated；被中斷則回到 ready。"},{"c":3,"q":"Context switch 時，被換下的 process 的狀態保存在哪裡？","o":["該 process 的 PCB","Interrupt vector","Ready queue 的 header","可執行檔的 header"],"a":0,"e":"PCB 記錄 program counter、CPU registers、排程與記憶體管理資訊等，切換時存入舊的、載入新的。"},{"c":3,"q":"關於 context-switch time 的敘述，何者正確？","o":["是純粹的 overhead，切換期間系統不做任何有用的工作","切換越頻繁，系統整體效能一定越好","與硬體支援完全無關","只有 multiprocessor 系統才會發生"],"a":0,"e":"Context switch 時間高度取決於硬體支援，典型為數微秒，期間沒有任何 process 有進展。"},{"c":3,"q":"fork() 回傳 0 代表什麼？","o":["目前執行的是 child process","目前執行的是 parent process","fork 失敗","child 已經結束"],"a":0,"e":"Child 得到 0；parent 得到 child 的 pid（大於 0）；小於 0 表示失敗。"},{"c":3,"q":"exec() 系列 system call 的作用是什麼？","o":["把目前 process 的記憶體空間換成一個新程式","建立一個新的 child process","等待 child process 結束","終止目前的 process 並回收資源"],"a":0,"e":"exec() 不產生新 process，只是把內容換掉；成功後不會返回原本的程式碼。"},{"c":3,"q":"什麼是 zombie process？","o":["已經終止，但 parent 還沒呼叫 wait() 的 process","parent 已終止而自己仍在執行的 process","陷入無窮迴圈的 process","被 swap out 到磁碟的 process"],"a":0,"e":"Parent 呼叫 wait() 後，zombie 的 pid 與 process table 項目才會被釋放。"},{"c":3,"q":"在 UNIX／Linux 中，parent 先終止後留下的 orphan process 如何處理？","o":["由 init process 成為新的 parent，並定期呼叫 wait()","立刻被系統全部終止","變成 zombie 直到重開機","自動升級為 kernel thread"],"a":0,"e":"init 收養孤兒並定期 wait()，以回收它們的資源。"},{"c":3,"q":"投影片的 bounded-buffer 解法中 BUFFER_SIZE 為 10，buffer 最多能同時放幾個項目？","o":["9","10","11","5"],"a":0,"e":"只用 in 與 out 判斷時，放滿 10 格會使 in == out，與「空」無法區分，所以必須留一格不用。"},{"c":3,"q":"當 send() 與 receive() 都是 blocking 時，sender 與 receiver 之間形成什麼？","o":["Rendezvous","Deadlock","Mailbox","Zombie"],"a":0,"e":"Blocking 即 synchronous；兩邊都 blocking 時稱為 rendezvous（會合）。"},{"c":3,"q":"Message queue 為 zero capacity 時，sender 的行為是什麼？","o":["必須 block，直到 receiver 收下訊息","永遠不會 block","只有在佇列滿時才 block","訊息直接被丟棄"],"a":0,"e":"Zero capacity 沒有 buffering；bounded 在佇列滿時才等；unbounded 永不 block。"},{"c":3,"q":"關於 UNIX 的 ordinary pipe，何者正確？","o":["單向通訊，而且通訊的 process 必須有 parent–child 關係","雙向通訊，任何兩個 process 都能使用","可以跨網路在不同機器之間通訊","process 結束後 pipe 仍然存在"],"a":0,"e":"Named pipe（FIFO）才不需要親屬關係，並在通訊的 process 結束後仍然存在。"},{"c":3,"q":"RPC 中 client-side stub 的工作是什麼？","o":["找到 server，並把參數 marshal 後送出","在 server 上實際執行被呼叫的程序","替 client 排程 CPU","把 socket 轉換成 pipe"],"a":0,"e":"Server-side stub 收到訊息後解開參數並執行程序。Stub 讓遠端呼叫看起來像本地呼叫。"},{"c":4,"q":"同一個 process 內的 thread 之間，下列哪一項不共享？","o":["Stack","Code section","全域變數（data section）","已開啟的檔案"],"a":0,"e":"每個 thread 有自己的 thread ID、program counter、register set 與 stack。"},{"c":4,"q":"下列哪一項不是投影片列出的 multithreaded programming 四大好處？","o":["Isolation：一個 thread 出錯不會影響同 process 的其他 thread","Responsiveness","Resource sharing","Scalability"],"a":0,"e":"四大好處是 responsiveness、resource sharing、economy、scalability。Thread 共享位址空間，隔離性反而比 process 差。"},{"c":4,"q":"在只有單一核心的系統上，多個 thread 的執行情況是什麼？","o":["可以 concurrent（交錯執行），但不是 parallel","可以真正同時執行","一次只能存在一個 thread","無法做 context switch"],"a":0,"e":"Concurrency 指所有工作都有進展；parallelism 指同時執行，需要多個核心。"},{"c":4,"q":"兩個 thread 分別加總 array 的前半與後半，屬於哪一種 parallelism？","o":["Data parallelism","Task parallelism","Fork parallelism","Implicit parallelism"],"a":0,"e":"Data parallelism 把同一份資料的子集合分到各核心做相同運算；task parallelism 則是各 thread 做不同運算。"},{"c":4,"q":"Many-to-one model 的主要缺點是什麼？","o":["一個 thread 呼叫 blocking system call 會讓整個 process block，而且無法在多核心上平行執行","每建立一個 user thread 就要建立一個 kernel thread","非常難以實作","Thread 的建立與管理速度很慢"],"a":0,"e":"Many-to-one 的 thread 管理在 user space，很有效率，但同一時間只有一個 thread 能進入 kernel。"},{"c":4,"q":"Linux 與 Windows 採用哪一種 multithreading model？","o":["One-to-one","Many-to-one","Many-to-many","Two-level"],"a":0,"e":"核心數增加後，限制 kernel thread 數量已不那麼重要，所以大多數 OS 現在用 one-to-one。"},{"c":4,"q":"pthread_join(tid, NULL) 的作用是什麼？","o":["等待指定的 thread 結束","建立一個新的 thread","取消指定的 thread","設定 thread 的預設屬性"],"a":0,"e":"pthread_create() 建立、pthread_join() 等待、pthread_exit() 結束、pthread_cancel() 取消。"},{"c":4,"q":"關於 Pthreads 的敘述，何者正確？","o":["它是定義 API 行為的規格（specification），不是實作","它只能在 Windows 上使用","它是 Java 語言內建的類別","它規定一定要以 user-level library 實作"],"a":0,"e":"Pthreads 是 POSIX 標準（IEEE 1003.1c），實作方式由函式庫開發者決定，常見於 Linux 與 macOS。"},{"c":4,"q":"在 Java 中要讓新 thread 開始執行，應該呼叫哪一個方法？","o":["start()","run()","join()","interrupt()"],"a":0,"e":"start() 會建立新 thread 並由它執行 run()；直接呼叫 run() 只是一般的方法呼叫，不會產生新 thread。"},{"c":4,"q":"Thread pool 的好處不包含下列哪一項？","o":["讓 thread 的數量可以無限制成長","用現成的 thread 服務請求，比新建 thread 快","限制同一時間存在的 thread 數量","把要執行的工作與建立 thread 的機制分開"],"a":0,"e":"Thread pool 正是為了避免無上限的 thread 耗盡系統資源。"},{"c":4,"q":"OpenMP 的 #pragma omp parallel 會做什麼？","o":["建立與核心數量相同的 thread 來執行該區塊","把該區塊編譯成 kernel module","強制該區塊以單一 thread 執行","把該區塊丟進 dispatch queue"],"a":0,"e":"#pragma omp parallel for 則是把 for 迴圈的各次迭代分給多個 thread。Dispatch queue 是 GCD 的概念。"},{"c":4,"q":"Multithreaded process 中的一個 thread 呼叫 exec() 會發生什麼事？","o":["指定的程式取代整個 process，包括所有 thread","只有呼叫的那個 thread 被取代","其他 thread 繼續執行原本的程式","系統回傳錯誤，因為不允許這樣呼叫"],"a":0,"e":"exec() 的參數所指定的程式會取代整個 process。"},{"c":4,"q":"下列哪一個事件產生的是 synchronous signal？","o":["程式執行了除以零","使用者按下 Ctrl-C","Timer 到期","另一個 process 呼叫 kill() 送出訊號"],"a":0,"e":"Synchronous signal 由執行中的程式自己的動作造成，並傳給同一個 process；其他三者都來自外部事件。"},{"c":4,"q":"Deferred cancellation 的做法是什麼？","o":["Target thread 定期檢查自己是否該終止，在 cancellation point 才結束","由另一個 thread 立刻強制終止 target thread","取消請求永遠被忽略","必須等整個 process 結束才會生效"],"a":0,"e":"Deferred 是 Pthreads 的預設類型，讓 thread 在安全的時間點結束；立刻終止的是 asynchronous cancellation。"},{"c":4,"q":"Linux 的 clone() 帶上 CLONE_VM 旗標代表什麼？","o":["parent 與 child 共享同一個記憶體空間","child 得到 parent 記憶體的獨立複本","child 會在虛擬機器中執行","child 不能存取任何記憶體"],"a":0,"e":"Linux 不區分 process 與 thread，統稱 task；clone() 的旗標決定 parent 與 child 之間共享多少。"},{"c":5,"q":"如果 CPU 排程只在 process「從 running 進入 waiting」與「終止」時發生，這種排程稱為什麼？","o":["Nonpreemptive（cooperative）scheduling","Preemptive scheduling","Round-robin scheduling","Real-time scheduling"],"a":0,"e":"這兩種情況下 process 自己放棄了 CPU，非排程不可；只在這兩種情況排程就是 nonpreemptive。"},{"c":5,"q":"下列哪一項不是 dispatcher 的工作？","o":["決定 ready queue 中哪個 process 下一個執行","Context switch","切換到 user mode","跳到 user program 中適當的位置讓它繼續執行"],"a":0,"e":"決定下一個執行誰是 CPU scheduler 的工作；dispatcher 負責實際切換過去。"},{"c":5,"q":"三個 process 皆在時間 0 依 P1、P2、P3 順序到達，burst 分別為 24、3、3。用 FCFS 的平均等待時間是多少？","o":["17","3","27","10"],"a":0,"e":"等待時間 P1 = 0、P2 = 24、P3 = 27，平均 51 / 3 = 17。若改成 P2、P3 先到，平均只有 3。"},{"c":5,"q":"什麼是 convoy effect？","o":["短的 process 排在長的 process 後面，大家都在等它離開 CPU，使 CPU 與裝置使用率都降低","低優先權 process 永遠等不到 CPU","time quantum 太小造成 context switch 過多","多個處理器同時存取共享資料造成不一致"],"a":0,"e":"Convoy effect 是 FCFS 的問題。永遠等不到 CPU 是 starvation。"},{"c":5,"q":"四個 process 皆在時間 0 到達，burst 為 6、8、7、3。用 nonpreemptive SJF 的平均等待時間是多少？","o":["7","10.25","6","9"],"a":0,"e":"順序 P4(0–3)、P1(3–9)、P3(9–16)、P2(16–24)，等待 3、16、9、0，平均 28 / 4 = 7。10.25 是 FCFS 的結果。"},{"c":5,"q":"SRTF（preemptive SJF）在什麼情況下會搶占目前執行中的 process？","o":["新到達 process 的 CPU burst 小於目前 process 的剩餘時間","目前 process 的 time quantum 用完","新到達 process 的優先權數字比較大","目前 process 執行超過平均 burst 長度"],"a":0,"e":"SRTF 比較的是新 process 的 burst 與執行中 process 的「剩餘」時間。"},{"c":5,"q":"SJF 可證明能得到最小的平均等待時間，為什麼還是無法直接用在 short-term（CPU）排程？","o":["無法事先知道下一次 CPU burst 的長度，只能預測","SJF 一定會造成 convoy effect","SJF 只能在多處理器上執行","SJF 無法處理到達時間不同的 process"],"a":0,"e":"實務上用過去 CPU burst 的指數平均來預測下一次的長度，近似 SJF。"},{"c":5,"q":"用指數平均預測下一次 CPU burst：α = 1/2，上一次實際值 t = 6，上一次預測值 τ = 10。下一次的預測值是多少？","o":["8","6","10","16"],"a":0,"e":"τ(n+1) = α·t(n) + (1 − α)·τ(n) = 0.5 × 6 + 0.5 × 10 = 8。"},{"c":5,"q":"Round-robin 的 time quantum 越來越大（q → ∞）時，會變成哪一種演算法？","o":["FCFS","SJF","Priority","EDF"],"a":0,"e":"每個 process 都能一次跑完，就等於先到先服務。q 太小則 context switch 次數會太多。"},{"c":5,"q":"Priority scheduling 中低優先權 process 可能永遠等不到 CPU，常見的解法是什麼？","o":["Aging：逐步提高等待很久的 process 的優先權","把 time quantum 調大","改用 FCFS","讓低優先權 process 改成 nonpreemptive"],"a":0,"e":"這個問題稱為 starvation（indefinite blocking），解法是 aging。"},{"c":5,"q":"Multilevel feedback queue 和 multilevel queue 最大的差別是什麼？","o":["Process 可以依行為在不同佇列之間升降","每個佇列都必須用 RR","只能有兩個佇列","不需要任何參數設定"],"a":0,"e":"Multilevel queue 的 process 永久固定在一個佇列；MLFQ 用太多 CPU 會降級、等太久會升級。"},{"c":5,"q":"Rate-monotonic scheduling 如何指定優先權？","o":["靜態指定：週期越短，優先權越高","動態指定：deadline 越早，優先權越高","依剩餘執行時間，越短越高","依到達順序，越早越高"],"a":0,"e":"RMS 是靜態優先權；依 deadline 動態指定的是 EDF。"},{"c":5,"q":"關於 EDF（earliest-deadline-first）何者正確？","o":["依 deadline 動態指定優先權，理論上可讓 CPU 使用率達到 100%","要求每個 process 都是週期性的","優先權在 process 建立時就固定不變","N = 2 時使用率上限約為 83%"],"a":0,"e":"EDF 不要求週期性，也不要求每次 burst 固定；83% 是 RMS 在 N = 2 時的上限。"},{"c":5,"q":"依 Little's formula（n = λ × W），每秒平均到達 7 個 process，每個平均在佇列中等 2 秒，佇列平均長度是多少？","o":["14","3.5","9","5"],"a":0,"e":"n = 7 × 2 = 14。公式成立的前提是到達率等於離開率。"},{"c":5,"q":"Linux 的 CFS 如何決定下一個執行的 task？","o":["選擇 vruntime（虛擬執行時間）最小的 task","選擇 nice value 最大的 task","選擇 time quantum 最長的 task","依 task 建立的先後順序"],"a":0,"e":"可執行的 task 放在以 vruntime 為 key 的紅黑樹中，最左邊的節點 vruntime 最小。"}]};
 (function () {
   'use strict';
   const $ = (s, r) => (r || document).querySelector(s);
@@ -8096,7 +10760,7 @@ const DATA = {"chapters":[{"n":1,"zh":"導論","en":"Introduction","sections":15
   });
 
   // ── notes ──
-  let noteCh = [1, 2, 3, 4].indexOf(store.ch) >= 0 ? store.ch : 1;
+  let noteCh = DATA.chapters.some(c => c.n === store.ch) ? store.ch : 1;
   chapterChips($('#note-chips'), false);
   const noteSync = chipGroup($('#note-chips'), () => noteCh, v => setChapter(Number(v), true));
   function setChapter(n, scroll) {
@@ -8197,7 +10861,7 @@ const DATA = {"chapters":[{"n":1,"zh":"導論","en":"Introduction","sections":15
   fcSync(); buildDeck();
 
   // ── quiz ──
-  const qz = { chs: new Set([1, 2, 3, 4]), type: 'concept', n: 10, list: [], i: 0, answers: [] };
+  const qz = { chs: new Set(DATA.chapters.map(c => c.n)), type: 'concept', n: 10, list: [], i: 0, answers: [] };
   chapterChips($('#qz-ch'), false);
   function qzSync() { $$('.chip', $('#qz-ch')).forEach(c => c.setAttribute('aria-pressed', String(qz.chs.has(Number(c.dataset.v))))); }
   $('#qz-ch').addEventListener('click', e => {
@@ -8252,7 +10916,7 @@ const DATA = {"chapters":[{"n":1,"zh":"導論","en":"Introduction","sections":15
   });
   $('#qz-redo').addEventListener('click', () => {
     const ids = new Set(DATA.quiz.filter(q => store.quiz[q.id] === 0).map(q => q.id));
-    startQuiz(shuffle(conceptQs(new Set([1, 2, 3, 4])).filter(q => ids.has(q.id))));
+    startQuiz(shuffle(conceptQs(new Set(DATA.chapters.map(c => c.n))).filter(q => ids.has(q.id))));
   });
 
   function renderQ() {
