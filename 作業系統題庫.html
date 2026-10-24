@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>暨大作業系統題庫</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;900&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: answer-sheet page — green ruled header band, stats ledger, filter rail, question cards graded in red pen */
+:root{
+  --paper:#f5f8f3; --sheet:#ffffff; --ink:#1c2a23; --muted:#5b6b62; --rule:#cddbd2;
+  --green:#2c7a57; --green-soft:#e3f0e8; --red:#c4382c; --red-soft:#fbeae7; --amber:#a86b12;
+  --code-bg:#eef3ef;
+  --f-display:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#101814; --sheet:#16211b; --ink:#e2ebe5; --muted:#93a69a; --rule:#2a3a31;
+  --green:#6cc196; --green-soft:#1d3329; --red:#ff7b6c; --red-soft:#3a1e1b; --amber:#e3a849; --code-bg:#0f1713; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#101814; --sheet:#16211b; --ink:#e2ebe5; --muted:#93a69a; --rule:#2a3a31;
+  --green:#6cc196; --green-soft:#1d3329; --red:#ff7b6c; --red-soft:#3a1e1b; --amber:#e3a849; --code-bg:#0f1713; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.7;margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+a{color:var(--green)}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* header band */
+.band{border-bottom:3px double var(--green);background:var(--sheet)}
+.band .wrap{padding-block:28px 18px;display:grid;gap:14px}
+.form-row{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);letter-spacing:.04em}
+.form-row span b{color:var(--ink);font-weight:500}
+h1{font-size:clamp(28px,5vw,44px);font-weight:900;letter-spacing:.02em}
+h1 small{display:block;font-family:var(--f-body);font-size:15px;font-weight:400;color:var(--muted);letter-spacing:0;margin-top:6px}
+.score-box{justify-self:start;align-items:center;border:2px solid var(--green);display:inline-grid;grid-template-columns:auto auto;font-size:13px}
+.score-box div{padding:4px 12px;border-right:1px solid var(--green)}
+.score-box div:last-child{border-right:0;font-family:var(--f-display);font-size:22px;color:var(--red);font-weight:900;min-width:72px;text-align:center}
+
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--rule)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;padding-block:8px}
+nav.tabs button{background:none;border:1px solid transparent;border-radius:4px;padding:6px 14px;cursor:pointer;white-space:nowrap;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{border-color:var(--green);color:var(--green);background:var(--green-soft);font-weight:700}
+
+section.view{padding-block:24px 64px}
+.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--green);font-weight:700}
+
+/* stats */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 26px}
+.kpi{background:var(--sheet);border:1px solid var(--rule);padding:12px 14px}
+.kpi .v{font-family:var(--f-display);font-size:32px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi .l{font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:22px}
+.panel{background:var(--sheet);border:1px solid var(--rule);padding:16px 18px;min-width:0}
+.panel h3{font-size:18px;margin-bottom:10px}
+.bars{display:grid;gap:7px}
+.bar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 34px;gap:10px;align-items:center;font-size:13px;cursor:pointer;background:none;border:0;padding:0;text-align:left}
+.bar:hover .lab{color:var(--green)}
+.bar .track{height:12px;background:var(--green-soft);position:relative}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--green)}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+table.freq{width:100%;border-collapse:collapse;font-size:13.5px}
+table.freq th,table.freq td{border-bottom:1px solid var(--rule);padding:7px 6px;text-align:left;vertical-align:top}
+table.freq th{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.06em}
+table.freq td.n{font-variant-numeric:tabular-nums;font-weight:700;color:var(--red);text-align:right;white-space:nowrap}
+.yrs{display:flex;flex-wrap:wrap;gap:4px}
+.yr{font-size:11.5px;border:1px solid var(--rule);padding:0 6px;border-radius:3px;color:var(--muted);white-space:nowrap}
+.tbl-scroll{overflow-x:auto}
+.files{font-size:13.5px;display:grid;gap:4px}
+.files div{display:grid;grid-template-columns:minmax(120px,34%) 1fr;gap:10px;border-bottom:1px dashed var(--rule);padding-bottom:4px}
+.files b{font-weight:500}
+
+/* bank */
+.filters{display:grid;gap:10px;background:var(--sheet);border:1px solid var(--rule);padding:14px;margin-bottom:18px}
+.frow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.frow .fl{font-size:12px;color:var(--muted);min-width:44px;letter-spacing:.06em}
+.frow>.frow{flex:1;min-width:0}
+.chip{border:1px solid var(--rule);background:var(--paper);border-radius:999px;padding:2px 11px;font-size:13px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--sheet)}
+.search{flex:1 1 220px;min-width:0;border:1px solid var(--rule);background:var(--paper);padding:6px 10px;border-radius:4px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.btn{border:1px solid var(--green);background:var(--sheet);color:var(--green);padding:6px 14px;border-radius:4px;cursor:pointer;font-weight:500}
+.btn.solid{background:var(--green);color:var(--sheet)}
+.btn.red{border-color:var(--red);color:var(--red)}
+.count{font-size:13px;color:var(--muted)}
+.count b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+.group-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--green)}
+.group-h h2{font-size:22px}
+.group-h .meta{font-size:13px;color:var(--muted)}
+.qlist{display:grid;gap:12px}
+.q{background:var(--sheet);border:1px solid var(--rule);display:grid;grid-template-columns:52px 1fr;min-width:0}
+.q.known{opacity:.62}
+.q .num{border-right:1px solid var(--rule);text-align:center;padding-top:12px;font-family:var(--f-display);font-weight:900;font-size:18px;color:var(--green);line-height:1.2}
+.q .num small{display:block;font-family:var(--f-body);font-size:10.5px;font-weight:400;color:var(--muted);margin-top:2px}
+.q .body{padding:12px 16px 12px;min-width:0}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;font-size:11.5px}
+.tag{padding:0 7px;border-radius:3px;background:var(--green-soft);color:var(--green);white-space:nowrap}
+.tag.t{background:transparent;border:1px solid var(--rule);color:var(--muted)}
+.tag.pts{background:transparent;color:var(--red);border:1px solid var(--red)}
+.tag.warn{background:transparent;color:var(--amber);border:1px dashed var(--amber)}
+.qt{overflow-wrap:anywhere}
+.qt p{margin:.3em 0}
+.opts{list-style:none;padding:0;margin:.4em 0;display:grid;gap:2px}
+.opts li{padding-left:2.2em;text-indent:-2.2em}
+pre{font-family:var(--f-mono);font-size:12.8px;background:var(--code-bg);border:1px solid var(--rule);padding:10px 12px;overflow-x:auto;line-height:1.5;margin:.5em 0;white-space:pre}
+code{font-family:var(--f-mono);font-size:.92em}
+table.dt{border-collapse:collapse;font-size:13px;margin:.5em 0;font-variant-numeric:tabular-nums}
+table.dt th,table.dt td{border:1px solid var(--rule);padding:3px 10px;text-align:center}
+table.dt th{background:var(--green-soft);font-weight:500}
+.dt-wrap{overflow-x:auto}
+details.ans{margin-top:10px;border-top:1px dashed var(--rule);padding-top:8px}
+details.ans summary{cursor:pointer;color:var(--red);font-weight:700;font-size:13.5px;list-style:none;display:inline-flex;align-items:center;gap:6px}
+details.ans summary::-webkit-details-marker{display:none}
+details.ans summary::before{content:"✎";font-weight:400}
+details.ans[open] summary{margin-bottom:6px}
+.ansbody{border-left:3px solid var(--red);background:var(--red-soft);padding:8px 12px;overflow-wrap:anywhere;min-width:0}
+.ansbody p{margin:.3em 0}
+.ansbody ul,.ansbody ol{margin:.3em 0;padding-left:1.4em}
+.ansbody .k{color:var(--red);font-weight:700}
+.note{font-size:12.5px;color:var(--muted);margin-top:4px}
+.qfoot{display:flex;justify-content:flex-end;margin-top:6px}
+.known-t{font-size:12.5px;color:var(--muted);display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.empty{padding:40px;text-align:center;color:var(--muted);background:var(--sheet);border:1px dashed var(--rule)}
+
+/* gantt */
+.gantt{margin:.5em 0 .2em;overflow-x:auto}
+.g-row{display:flex;min-width:420px;height:30px;border:1px solid var(--ink)}
+.g-seg{border-right:1px solid var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-family:var(--f-mono);font-weight:600;overflow:hidden}
+.g-seg:last-child{border-right:0}
+.g-seg.idle{background:repeating-linear-gradient(45deg,transparent 0 4px,var(--rule) 4px 5px);color:var(--muted);font-weight:400}
+.g-ticks{position:relative;min-width:420px;height:18px;font-size:11px;font-family:var(--f-mono);color:var(--muted)}
+.g-ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.g-ticks span:first-child{transform:none}
+.g-ticks span:last-child{transform:translateX(-100%)}
+.g-cap{font-size:12px;color:var(--muted);font-weight:700;margin-top:6px}
+
+/* practice */
+.practice{max-width:820px;margin:0 auto}
+.practice .q{margin-top:14px}
+.pbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+
+@media (max-width:560px){
+  .q{grid-template-columns:1fr}
+  .q .num{border-right:0;border-bottom:1px solid var(--rule);text-align:left;padding:8px 14px;display:flex;gap:10px;align-items:baseline}
+  .q .num small{margin:0}
+  .bar{grid-template-columns:minmax(80px,42%) 1fr 30px}
+}
+@media (prefers-reduced-motion:no-preference){.q{transition:opacity .2s}}
+</style>
+</head>
+<body>
+
+
+<header class="band">
+  <div class="wrap">
+    <div class="form-row"><span>科目名稱：<b>作業系統 Operating Systems</b></span><span>系所：<b>暨大資管</b></span><span>範圍：<b>Ch1–Ch10（不含 Ch7）</b></span></div>
+    <h1>作業系統題庫<small>資料夾裡的期中期末、小考、學習單、作業，加上 HackMD 學姊考古，全部題目與解答整理在這裡</small></h1>
+    <div class="score-box"><div>收錄題數</div><div id="totalBox">—</div></div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="頁面切換"><div class="wrap" role="tablist">
+  <button role="tab" id="tab-stats" aria-selected="true" data-view="stats">統計總覽</button>
+  <button role="tab" id="tab-bank" aria-selected="false" data-view="bank">題庫</button>
+  <button role="tab" id="tab-practice" aria-selected="false" data-view="practice">抽題練習</button>
+</div></nav>
+
+<main>
+<section class="view wrap" id="view-stats"></section>
+<section class="view wrap" id="view-bank" hidden>
+  <div class="filters">
+    <div class="frow"><span class="fl">來源</span><div class="frow" id="f-src"></div></div>
+    <div class="frow"><span class="fl">章節</span><div class="frow" id="f-ch"></div></div>
+    <div class="frow"><span class="fl">題型</span><div class="frow" id="f-type"></div></div>
+    <div class="frow"><span class="fl">考點</span><div class="frow" id="f-topic"></div></div>
+    <div class="frow"><input id="f-q" class="search" type="search" placeholder="搜尋題目或解答，例如 Banker、fork、clustered"><label class="known-t"><input type="checkbox" id="f-unknown"> 只看還沒掌握的</label></div>
+  </div>
+  <div class="tools">
+    <div class="count" id="bankCount"></div>
+    <div class="frow"><button class="btn" id="btnOpenAll">全部展開解答</button><button class="btn" id="btnCloseAll">全部收起</button><button class="btn red" id="btnReset">清除篩選</button></div>
+  </div>
+  <div id="bankList"></div>
+</section>
+<section class="view wrap" id="view-practice" hidden>
+  <div class="practice">
+    <div class="pbar"><div class="count" id="pCount"></div><div class="frow"><button class="btn" id="pShow">看解答</button><button class="btn solid" id="pNext">下一題</button></div></div>
+    <p class="note">從「題庫」頁目前的篩選結果中隨機抽題。勾「我會了」的題目不會再被抽到。</p>
+    <div id="pCard"></div>
+  </div>
+</section>
+</main>
+
+<script>
+/* ---------- helpers ---------- */
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const C=s=>`<pre>${esc(s.replace(/^\n/,""))}</pre>`;
+const opts=a=>`<ul class="opts">${a.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const T=(head,rows)=>`<div class="dt-wrap"><table class="dt"><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</table></div>`;
+function G(segs,cap){
+  const s0=segs[0][0], s1=segs[segs.length-1][1], span=s1-s0;
+  const row=segs.map(([a,b,p])=>`<div class="g-seg${p==="idle"?" idle":""}" style="flex:${b-a} 0 0">${p==="idle"?"閒置":p}</div>`).join("");
+  const pts=[...new Set(segs.flatMap(([a,b])=>[a,b]))];
+  const ticks=pts.map(t=>`<span style="left:${(t-s0)/span*100}%">${t}</span>`).join("");
+  return `${cap?`<div class="g-cap">${cap}</div>`:""}<div class="gantt"><div class="g-row">${row}</div><div class="g-ticks">${ticks}</div></div>`;
+}
+
+/* ---------- reusable answers ---------- */
+const A_DUAL=`
+<p><span class="k">Interrupt（中斷）</span>：硬體非同步送給 CPU 的訊號，表示某事件發生／完成（I/O 完成、鍵盤輸入、timer 到時）。CPU 暫停目前工作 → 查 <b>interrupt vector</b> → 執行對應的 ISR → 回到原程式。</p>
+<p><span class="k">Trap / Exception</span>：由軟體在執行時同步產生的中斷。兩種來源：① 程式錯誤，如除以 0、非法記憶體存取；② 使用者程式要求 OS 服務。</p>
+<p><span class="k">System call</span>：使用者程式向 OS 要服務的介面，例如 <code>open()</code>、<code>read()</code>、<code>fork()</code>。執行時用 trap 指令切進 kernel mode。</p>
+<p><span class="k">Dual-mode</span>：硬體提供 mode bit（kernel = 0、user = 1）。I/O、改 timer、關中斷、改 mode bit 這些特權指令只准在 kernel mode 執行，user mode 執行就會 trap。</p>
+${C(`
+ user process 執行 ──► 呼叫 system call ──► trap（mode bit = 0）
+                                              │
+                                     kernel 執行 system call
+                                              │
+ user process 繼續 ◄── return from system call（mode bit = 1）`)}
+<p><b>為什麼要硬體支援 dual-mode：</b>保護 OS 和其他程式，不讓有錯或惡意的程式直接動系統資源。</p>
+<ul>
+<li><b>System call</b>：使用者不能自己做 I/O，只能 trap 進 kernel，讓 OS 檢查參數後代做，做完再切回 user mode。</li>
+<li><b>Trap</b>：程式除以 0 或越界存取 → trap 進 kernel → OS 結束這個程式並回報錯誤，整個系統不會一起掛掉。</li>
+<li><b>Timer interrupt</b>：OS 把 CPU 交給使用者前先設定 timer，時間到就中斷把控制權拿回 OS，避免無窮迴圈霸佔 CPU。設定 timer 是特權指令，使用者改不了。</li>
+</ul>`;
+
+const A_KTABLE=`
+${T(["","Monolithic","Layered","Microkernel","LKM（Loadable Kernel Modules）"],[
+["做法","所有功能放在同一個 kernel、同一個位址空間，函式可互相呼叫，非結構化","OS 分成多層，上層只能呼叫下層（layer 0 = hardware，layer N = user interface）","kernel 只留最必要的服務（IPC、記憶體、CPU 排程），其他服務（檔案系統、驅動）移到 user mode，透過 message passing 溝通","核心只有基本元件，其他功能寫成 module，需要時才<b>動態載入</b>到 kernel（如 Linux、Solaris）"],
+["Extensibility","低：加功能要改整個 kernel 再重編","中：層次定義困難，新功能要找到對的層","高：新服務加在 user space，不必改 kernel","高：新功能寫成 module 動態載入"],
+["Performance","最好：呼叫直接、進出 kernel 少","較差：每層呼叫都有開銷","較差：user 與 kernel 之間大量 message passing、mode switch","好：module 都在 kernel 內，可直接互相呼叫，不用 message passing"],
+["Security / 穩定","較差：一個地方出錯整個 kernel 當掉","好：分層容易 debug 與驗證","最好：服務在 user mode，掛掉只像一個 process 死掉","較差：module 在 kernel mode 執行，寫壞的 module 可讓系統當機"]])}`;
+
+const A_MICRO=`
+${C(`
+   Application   File System   Device Driver        ← user mode
+        │  ▲          │  ▲          │  ▲
+        ▼  │ messages ▼  │ messages ▼  │
+ ┌──────────────────────────────────────────┐
+ │  Interprocess   │  Memory     │  CPU     │      ← kernel mode
+ │  Communication  │  Management │ Scheduling│        (microkernel)
+ └──────────────────────────────────────────┘
+                    hardware`)}
+<p><b>Microkernel approach</b>：把非必要的元件從 kernel 移到 user space，kernel 只提供最小的 process 管理、記憶體管理和 IPC。Client 程式和 user space 的服務之間不直接呼叫，而是透過 kernel 的 message passing 溝通。</p>
+<p>實務上（如 Mac OS X、Windows NT 的混合式設計）因為檔案系統、device driver 太常用，全走 message passing 會頻繁進出 kernel、拖慢速度，所以又把部分服務放回 kernel mode。</p>`;
+
+const A_LKM=`<p><b>Loadable kernel modules</b>：kernel 只保留核心元件，其他服務（device / bus drivers、file systems、scheduling classes、system calls、executable formats、STREAMS modules…）寫成獨立 module，在開機或執行時需要時才<b>動態連結載入</b>到 kernel。每個 module 有定義好的介面（像 layered），但任何 module 都能直接呼叫其他 module（比 layered 有彈性），而且都在 kernel 內不需要 message passing（比 microkernel 有效率）。</p>
+${C(`
+ device & bus drivers   scheduling classes   file systems
+              ╲               │               ╱
+ miscellaneous ── [ core Solaris / Linux kernel ] ── loadable system calls
+              ╱               │               ╲
+ STREAMS modules        executable formats`)}`;
+
+const A_MICRO_LKM=`
+${T(["","Microkernel","LKM"],[
+["Extensibility","好：新服務加在 user space，不用改 kernel","好：新功能寫成 module，需要時動態載入"],
+["Performance","較差：使用 user mode 的服務要 message passing、多次 mode switch","較好：module 都在 kernel mode，可直接互相呼叫"],
+["Security","較好：服務多在 user mode，服務掛掉只像一個 user process 死掉，不影響 kernel","較差：module 在 kernel mode，寫壞的 module 載入後可能讓整個系統當機"]])}
+<p>結論：performance　microkernel &lt; LKM；security　microkernel &gt; LKM；extensibility 兩者都好。</p>`;
+
+const A_IPC=`
+<p><span class="k">Producer–consumer problem</span>：producer 產生資料放進 buffer，consumer 從 buffer 取出使用。buffer 可能有限（bounded）或無限（unbounded）；必須保證 buffer 滿時 producer 不再放、buffer 空時 consumer 不去拿，並且雙方同步。</p>
+${C(`
+ (a) Shared memory                 (b) Message passing
+ ┌──────────────┐                 ┌──────────────┐
+ │  process A   │                 │  process A   │──┐ send(m)
+ ├──────────────┤                 ├──────────────┤  │
+ │ shared memory│ ◄─ A 寫, B 讀    │  process B   │◄─┼─ receive(m)
+ ├──────────────┤                 ├──────────────┤  │
+ │  process B   │                 │ message queue│◄─┘
+ ├──────────────┤                 │ m0 m1 m2 … mn│
+ │    kernel    │                 │    kernel    │
+ └──────────────┘                 └──────────────┘`)}
+${T(["","Shared memory","Message passing"],[
+["怎麼解 P–C","雙方共用一塊 buffer（circular buffer, in/out 指標），producer write、consumer read；最多只能用到 BUFFER_SIZE − 1 格","producer send(message)、consumer receive(message)，溝通前要先建立 communication link"],
+["優點","建好後不需 kernel 介入，在同一台機器上速度最快","OS 幫忙同步、不必處理共用變數衝突；適合跨機器（分散式）；適合少量資料"],
+["缺點","要自己處理同步與保護（lock），否則資料被覆寫；要預留足夠記憶體；不適合跨機器","每次 send/receive 都是 system call，需 kernel 介入並複製資料，速度較慢"]])}`;
+
+const A_ONE2ONE=`
+${C(`
+   user thread:    ≀    ≀    ≀    ≀      ← user space
+                   │    │    │    │
+   kernel thread:  ≀    ≀    ≀    ≀      ← kernel space`)}
+<p><b>One-to-one model</b>：每建立一個 user thread，就對應一個 kernel thread（Linux、Windows 都用）。</p>
+<p><b>優點</b>：concurrency 比 many-to-one 高。一個 thread 做 blocking system call 時，其他 thread 還能繼續跑；在 multiprocessor 上多個 thread 可以真正平行執行。</p>
+<p><b>缺點</b>：每建一個 user thread 都要建 kernel thread，開銷大；kernel thread 數量多會拖累效能，所以系統通常限制 thread 數量。</p>`;
+
+const A_MEMLAYOUT=`
+${C(`
+ max ┌──────────┐
+     │  stack   │  區域變數、函式參數、回傳位址（往下長）
+     │    ↓     │
+     │    ↑     │
+     │  heap    │  執行時動態配置（malloc / new，往上長）
+     ├──────────┤
+     │  data    │  global / static 變數
+     ├──────────┤
+   0 │  text    │  程式碼
+     └──────────┘`)}
+<p><span class="k">Context of a process</span>：process 的執行狀態，存放在 <b>PCB</b>：process state、program counter、CPU registers（含 stack pointer）、CPU 排程資訊、記憶體管理資訊（base / limit registers、page table）、accounting、I/O 狀態資訊。</p>
+<p><span class="k">Context switch</span>：</p>
+${C(`
+ process P0                 OS                      process P1
+ executing ─ interrupt or system call ─►
+            save state into PCB0
+            reload state from PCB1   ─────────────► executing
+ idle                                               (P1 被中斷)
+            save state into PCB1
+ executing ◄─ reload state from PCB0`)}
+<ol><li>發生 interrupt 或 system call，CPU 進入 kernel。</li><li>把目前 process 的 PC、registers 等狀態存回它的 PCB。</li><li>scheduler 選下一個 process。</li><li>從新 process 的 PCB 載入狀態，跳回它上次的位置繼續執行。</li></ol>
+<p>Context switch 期間系統不做有用的工作，是純 overhead，時間取決於硬體支援（例如多組 register set）。</p>`;
+
+const A_MULTIPROG=`
+${C(`
+ 0 ┌──────────────────┐
+   │ operating system │
+   ├──────────────────┤
+   │ job 1            │◄─ 等 I/O 時，CPU 切去跑 job 2
+   ├──────────────────┤
+   │ job 2            │
+   ├──────────────────┤
+   │ job 3            │
+   ├──────────────────┤
+   │ job 4            │
+max└──────────────────┘`)}
+<p>Multiprogramming：OS 同時把多個 job 放在記憶體裡。正在執行的 job 要等待（例如等 I/O）時，OS 不讓 CPU 閒著，而是切換去執行另一個 job；第一個 job 等完再回來。只要還有 job 要跑，CPU 就一直有事做，所以 CPU utilization 提高。（Time-sharing 再進一步：切換得非常頻繁，讓每個使用者都覺得自己獨占電腦。）</p>`;
+
+const A_THREADS=`
+${C(`
+   single-threaded process          multithreaded process
+ ┌──────┬──────┬──────┐       ┌──────┬──────┬──────┐
+ │ code │ data │files │       │ code │ data │files │   ← 共用
+ ├──────┴──┬───┴──────┤       ├──────┼──────┼──────┤
+ │registers│  stack   │       │ regs │ regs │ regs │   ← 各自擁有
+ │   PC    │          │       │stack │stack │stack │
+ │    ≀ thread        │       │ PC   │ PC   │ PC   │
+ └─────────┴──────────┘       │  ≀   │  ≀   │  ≀   │
+                              └──────┴──────┴──────┘`)}
+<p>同一 process 的 threads 共用 code、data（global）、open files；每個 thread 有自己的 thread ID、PC、register set、stack。和多 process 比：建立與切換 thread 便宜很多、資源共享方便、responsiveness 好，在多核心上可以平行執行。</p>`;
+
+/* ---------- sources ---------- */
+const SRC={
+  e2016m:{label:"2016 期中考",date:"2016/11/18",kind:"期中考",from:"資料夾｜期末／OS期中期末.pdf 第 1–3 頁"},
+  e2017f:{label:"2017 期末考",date:"2017/01/13",kind:"期末考",from:"資料夾｜期末／OS期中期末.pdf 第 7–10 頁"},
+  e2017m:{label:"2017 期中考",date:"2017/11/23",kind:"期中考",from:"資料夾｜期中考照片 + 期末 PDF 第 4–6 頁 + HackMD 2017 考古"},
+  e2019m:{label:"2019 期中考",date:"2019/11/12",kind:"期中考",from:"資料夾｜期中考照片 + HackMD 2019 考古"},
+  e2020m:{label:"2020 期中考",date:"2020/10/20",kind:"期中考",from:"HackMD｜2020 考古照片"},
+  hmS:{label:"HackMD 排程考題",date:"年份未標",kind:"考古（HackMD）",from:"HackMD｜2017 考古最後一張照片（另一份排程考卷）"},
+  q2023:{label:"2023 小考",date:"2023/11/30",kind:"小考",from:"資料夾｜小考（4 張照片，2 份同卷）"},
+  e2024m:{label:"期中考答案卷 A",date:"學號 111 級",kind:"期中考（答案卷回推）",from:"資料夾｜期中考 S__139657223～227（只有答案卷，沒有題目卷）"},
+  e2025m:{label:"期中考答案卷 B",date:"學號 112 級",kind:"期中考（答案卷回推）",from:"資料夾｜期中考 S__139657229～231（只有答案卷，沒有題目卷）"},
+  ws:{label:"2025 學習單",date:"2025/09/11–12/11",kind:"學習單",from:"資料夾｜學習單 PDF（5 頁）+ 4 張照片"},
+  hw:{label:"作業",date:"2025 學期",kind:"作業",from:"資料夾｜作業（HW3、prog.4.c、模擬器、Banker 手寫、VirtualBox / KVM）"}
+};
+const CH={c1:"Ch1 導論",c2:"Ch2 OS 結構",c3:"Ch3 Process",c4:"Ch4 Threads",c5:"Ch5 CPU 排程",c6:"Ch6–7 同步",c8:"Ch8 死結",c9:"Ch9 主記憶體",c10:"Ch10 虛擬記憶體"};
+const TYPE={mc:"選擇",fill:"填空",essay:"問答 / 畫圖",calc:"計算 / 程式追蹤",lab:"實作"};
+const TOPIC={
+  dual:"Interrupt / Trap / System call / Dual-mode",
+  kstruct:"Kernel 架構（Monolithic、Layered、Microkernel、LKM）",
+  ipc:"IPC 與 Producer–Consumer",
+  tmodel:"多執行緒模型（1:1、M:1、M:M）",
+  forkout:"fork() / Pthreads 程式輸出",
+  systype:"系統類型名詞（clustered、real-time、embedded…）",
+  boot:"Bootstrap program",
+  virt:"虛擬化 / VM",
+  multiprog:"Multiprogramming / Time-sharing",
+  procmem:"Process 記憶體配置、PCB、Context switch",
+  prisched:"Preemptive priority 排程 Gantt chart",
+  schedc:"排程觀念（何時排程、哪種演算法）",
+  rtsched:"即時排程 EDF / Rate-Monotonic",
+  sync:"同步機制、Critical section、經典問題",
+  deadlock:"死結條件、Banker's algorithm",
+  paging:"Paging、TLB、位址轉換",
+  pagerep:"Page replacement（FIFO / LRU / OPT）",
+  shell:"Shell / exec 實作"
+};
+
+/* ---------- questions ---------- */
+const Q=[];
+const add=o=>Q.push(o);
+
+/* ===== 2016 期中考 ===== */
+add({s:"e2016m",sec:"I. Selection",n:1,t:"mc",ch:"c4",tp:[],pts:"2%",q:`Which of the following components of program state are <b>not</b> shared among threads in a multithreaded process?${opts(["(A) global variables","(B) CPU register values","(C) stack memory","(D) heap memory","(E) program code"])}`,a:`<p class="k">(B)(C)</p><p>每個 thread 有自己的 register set 與 stack；global 變數、heap、程式碼由同一 process 的 threads 共用。</p>`});
+add({s:"e2016m",sec:"I. Selection",n:2,t:"mc",ch:"c4",tp:["tmodel"],pts:"2%",q:`Consider a multithreaded program running on a multicore system. Threads can run in parallel on the system for which multithreaded models?${opts(["(A) many-to-one model","(B) one-to-one model","(C) many-to-many model","(D) one-to-many model","(E) two-level model"])}`,a:`<p class="k">(B)(C)(E)</p><p>Many-to-one 只有一個 kernel thread，同時只能有一個 thread 進 kernel，無法平行；one-to-many 不是標準模型。</p>`});
+add({s:"e2016m",sec:"I. Selection",n:3,t:"mc",ch:"c4",tp:["tmodel"],pts:"2%",q:`Consider a multithreaded program running on a multicore system. If a thread makes a blocking system call, the entire process will block for the${opts(["(A) many-to-one model","(B) one-to-one model","(C) many-to-many model","(D) one-to-many model","(E) two-level model"])}`,a:`<p class="k">(A) many-to-one</p><p>所有 user threads 對應同一個 kernel thread，它被 block，整個 process 就停住。</p>`});
+add({s:"e2016m",sec:"I. Selection",n:4,t:"mc",ch:"c4",tp:["tmodel"],pts:"2%",q:`A multithreaded program can achieve better performance when running on a multiprocessor system than on a single-processor system for${opts(["(A) many-to-one model","(B) one-to-one model","(C) many-to-many model","(D) one-to-many model","(E) two-level model"])}`,a:`<p class="k">(B)(C)(E)</p><p>需要多個 kernel thread 才能被排到不同處理器上平行執行。</p>`});
+add({s:"e2016m",sec:"I. Selection",n:5,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`For nonpreemptive scheduling, CPU-scheduling decisions may take place when a process${opts(["(A) enters the system","(B) switches from running to waiting state","(C) switches from running to ready state","(D) switches from waiting to ready state","(E) terminates"])}`,a:`<p class="k">(B)(E)</p><p>Nonpreemptive 只在 process 自己放棄 CPU 時排程：running → waiting，或 terminate。(C)(D) 會發生排程的是 preemptive。</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:1,t:"fill",ch:"c1",tp:["boot"],pts:"2%",q:`An initial program that initializes all aspects of the system, loads OS kernel, start executing the OS is ______.`,a:`<p class="k">bootstrap program</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:2,t:"fill",ch:"c1",tp:["virt"],pts:"2%",q:`What virtualization software do you use to build your virtual machines? ______`,a:`<p class="k">VirtualBox</p><p>（VMware、Parallels、KVM 也可以，寫自己實際用的。）</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:3,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`An ______ system is a combination of computer hardware and software, and perhaps additional mechanical or other parts, designed to perform specific tasks.`,a:`<p class="k">embedded</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:4,t:"fill",ch:"c2",tp:["dual"],pts:"2%",q:`______ allow user programs to request services of OS.`,a:`<p class="k">System calls</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:5,t:"fill",ch:"c2",tp:["shell"],pts:"2%",q:`A command interpreter that gets and executes the next user-specified command is ______.`,a:`<p class="k">shell</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:6,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A multiprocessor system in which each processor performs all tasks within OS is ______.`,a:`<p class="k">symmetric multiprocessing (SMP)</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:7,t:"fill",ch:"c1",tp:[],pts:"2%",q:`______ I/O: Device controller transfers an entire block of data directly to or from its own buffer storage to main memory, without CPU intervention.`,a:`<p class="k">DMA（Direct Memory Access）</p>`});
+add({s:"e2016m",sec:"II. Fill in the Blank",n:8,t:"fill",ch:"c1",tp:["multiprog"],pts:"2%",q:`In a ______ system, OS keeps several jobs in memory simultaneously. When one job being executed needs to wait, the OS switches to and executes another job.`,a:`<p class="k">multiprogramming</p>`});
+add({s:"e2016m",sec:"III. Questions",n:1,t:"essay",ch:"c1",tp:["dual"],pts:"12%",q:`What is the key difference between a trap and an interrupt? (4%) What is dual-mode operation? (2%) Using trap and timer interrupt as examples to discuss why modern operating systems take advantage of hardware-supported dual-mode operation. (6%)`,a:`<p><b>關鍵差異</b>：trap 是軟體在執行時「同步」產生（錯誤或 system call）；interrupt 是硬體「非同步」發出（I/O 完成、timer）。</p>${A_DUAL}`});
+add({s:"e2016m",sec:"III. Questions",n:2,t:"essay",ch:"c2",tp:["kstruct"],pts:"8%",q:`Discuss the difference between microkernel and monolithic kernel structure.`,a:A_KTABLE});
+add({s:"e2016m",sec:"III. Questions",n:3,t:"essay",ch:"c2",tp:["kstruct"],pts:"16%",q:`What is the modular kernel approach in operating-system design? Compare its advantages over monolithic kernel, microkernel, and layered approach. (4%)(12%)`,a:`${A_LKM}<p><b>相較其他架構的優點</b>：比 monolithic 好擴充、好維護（功能拆成 module）；比 layered 有彈性（任一 module 可直接呼叫其他 module，不受層次限制）；比 microkernel 有效率（module 在 kernel 內，不必 message passing）。</p>${A_KTABLE}`});
+add({s:"e2016m",sec:"III. Questions",n:4,t:"essay",ch:"c3",tp:["ipc"],pts:"12%",q:`Please take the producer-consumer problem as an example to discuss the strengths and weaknesses of using two different models of interprocess communication. Draw the diagram for each model. (8%)(4%)`,a:A_IPC});
+add({s:"e2016m",sec:"III. Questions",n:5,t:"calc",ch:"c5",tp:["prisched"],pts:"16%",q:`A system distinguishes two types of processes: real-time process and normal process. Basically, the system uses <b>preemptive priority-based</b> scheduling algorithm. Real-time processes are assigned with the highest priority and scheduled in FCFS order. Normal processes are assigned with the lowest priority and scheduled in Round-Robin order with time quantum 2. The table below shows five processes that need to be scheduled. The length of the CPU-burst time is given in milliseconds.<br>(a) Please draw the Gantt chart. (5%)<br>(b) Please show the waiting time for each process and show average waiting time. (10%)(1%)
+${T(["Process","Arrival Time","CPU Burst","Type"],[["P1",1,6,"Normal"],["P2",9,2,"Real-time"],["P3",0,3,"Normal"],["P4",7,3,"Real-time"],["P5",4,1,"Real-time"]])}`,a:`${G([[0,2,"P3"],[2,4,"P1"],[4,5,"P5"],[5,6,"P3"],[6,7,"P1"],[7,10,"P4"],[10,12,"P2"],[12,15,"P1"]],"(a) Gantt chart")}
+${T(["Process","完成","Waiting = 完成 − 到達 − burst"],[["P1",15,"15 − 1 − 6 = 8"],["P2",12,"12 − 9 − 2 = 1"],["P3",6,"6 − 0 − 3 = 3"],["P4",10,"10 − 7 − 3 = 0"],["P5",5,"5 − 4 − 1 = 0"]])}
+<p class="k">平均 waiting time = (8 + 1 + 3 + 0 + 0) / 5 = 2.4 ms</p>
+<p class="note">過程：t=2 P3 用完 quantum 排到 P1 後面；t=4 P5（real-time）到達，P1 剛好用完 quantum；t=7 P4 到達搶走 P1；P2 在 t=9 到達，等 P4 做完（FCFS）。</p>`});
+add({s:"e2016m",sec:"III. Questions",n:6,t:"calc",ch:"c4",tp:["forkout"],pts:"10%",q:`What would be the output for the following C program using UNIX <i>fork()</i> and Pthreads API?${C(String.raw`
+#include <pthread.h>
+#include <stdio.h>
+
+int value = 0;
+
+void runner()
+{
+    printf("(1) %d ", value);
+    value++;
+}
+
+void *start(void *param)
+{
+    runner();
+    value++;
+    pthread_exit(0);
+}
+
+int main(int argc, char *argv[])
+{
+    int pid;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    value++;
+    pid = fork();
+    value++;
+    if (pid == 0) {              /* child process */
+        value++;
+        printf("(2) %d ", value);
+        pthread_attr_init(&attr);
+        value++;
+        pthread_create(&tid, &attr, start, NULL);
+        value++;
+        pthread_join(tid, NULL);
+        runner();
+    }
+    else if (pid > 0) {          /* parent process */
+        value++;
+        wait(NULL);
+        value++;
+    }
+    printf("(3) %d ", value);
+}`)}`,a:`<p class="k">(2) 3　(1) 5　(1) 7　(3) 8　(3) 4</p>
+<ul><li>fork 前 value = 1，fork 後父子各有一份，各自 ++ → 2。</li>
+<li>Child：++ → 3，印 <b>(2) 3</b>；++ → 4；建立 thread 後 main thread 又 ++ → 5。新 thread 和 main thread 共用 value，thread 的 runner 若在 main 的 value++ 之後才印，就印 <b>(1) 5</b>（若搶先則印 (1) 4，這是 race condition）。thread 做完 runner++ 和 value++，value = 7。join 後 child 呼叫 runner 印 <b>(1) 7</b>，++ → 8，印 <b>(3) 8</b>。</li>
+<li>Parent：++ → 3，wait 等 child 結束，++ → 4，最後印 <b>(3) 4</b>。父子的 value 互不影響。</li></ul>`});
+
+/* ===== 2017 期末考 ===== */
+add({s:"e2017f",sec:"I. Selection",n:1,t:"mc",ch:"c6",tp:["sync"],pts:"2%",q:`Which synchronization mechanism is most suitable to be used on a multiprocessor system if the lock is held by a currently running thread?${opts(["(a) blocking semaphore","(b) disabling/enabling interrupt","(c) spinlock","(d) condition variables"])}`,a:`<p class="k">(c) spinlock</p><p>鎖的持有者正在另一顆 CPU 上跑，很快就會釋放，忙等一下比 context switch 便宜。</p>`});
+add({s:"e2017f",sec:"I. Selection",n:2,t:"mc",ch:"c6",tp:["sync"],pts:"2%",q:`Which synchronization mechanism is most suitable to be used inside the kernel on a single processor system?${opts(["(a) blocking semaphore","(b) monitor","(c) spinlock","(d) disabling/enabling interrupt"])}`,a:`<p class="k">(d) disabling/enabling interrupt</p><p>單處理器上關中斷就不會被搶走 CPU，最簡單；spinlock 在單處理器上只會白轉。</p>`});
+add({s:"e2017f",sec:"I. Selection",n:3,t:"mc",ch:"c6",tp:["sync"],pts:"2%",q:`Which synchronization mechanism is most suitable to be used on a multiprocessor system if the lock is held by a thread not currently running?${opts(["(a) blocking semaphore","(b) disabling/enabling interrupt","(c) spinlock","(d) condition variables"])}`,a:`<p class="k">(a) blocking semaphore</p><p>持有者沒在跑，等待時間可能很長，應該讓等待者 block 讓出 CPU。</p>`});
+add({s:"e2017f",sec:"I. Selection",n:4,t:"mc",ch:"c6",tp:["sync"],pts:"2%",q:`A solution to the critical-section problem must satisfy${opts(["(a) mutual exclusion","(b) progress","(c) no preemption","(d) circular wait","(e) bounded waiting"])}`,a:`<p class="k">(a)(b)(e)</p>`});
+add({s:"e2017f",sec:"I. Selection",n:5,t:"mc",ch:"c8",tp:["deadlock"],pts:"2%",q:`The necessary conditions of a deadlock are${opts(["(a) bounded waiting","(b) progress","(c) no preemption","(d) circular wait","(e) mutual exclusion"])}`,a:`<p class="k">(c)(d)(e)</p><p>四個必要條件：mutual exclusion、hold and wait、no preemption、circular wait（hold and wait 不在選項中）。</p>`});
+add({s:"e2017f",sec:"I. Selection",n:6,t:"mc",ch:"c9",tp:["paging"],pts:"2%",q:`External fragmentation would occur in${opts(["(a) continuous memory allocation","(b) paging","(c) segmentation","(d) single-partition scheme","(e) swapping"])}`,a:`<p class="k">(a)(c)</p><p>Contiguous allocation 與 segmentation 配置大小不一的連續區塊，會留下零碎空洞；paging 只有 internal fragmentation。</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:1,t:"fill",ch:"c6",tp:["sync"],pts:"2%",q:`______ is a scheduling problem when lower-priority process holds a lock needed by higher-priority process. It leads to the situation in which a low-priority task executes while a higher priority task waits on it due to resource contentions.`,a:`<p class="k">Priority inversion</p><p>解法：priority-inheritance protocol。</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:2,t:"fill",ch:"c6",tp:["sync"],pts:"2%",q:`A situation where several processes access and manipulate the same data concurrently, and the outcome of the execution depends on the particular order in which the access takes place, is called a ______.`,a:`<p class="k">race condition</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:3,t:"fill",ch:"c10",tp:["pagerep"],pts:"2%",q:`______ is a technique that allows the execution of processes that may not be completely in memory. It separates user logical memory from physical memory.`,a:`<p class="k">Virtual memory</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:4,t:"fill",ch:"c10",tp:["pagerep"],pts:"2%",q:`Access to a page that is not in memory causes a ______ trap.`,a:`<p class="k">page fault</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:5,t:"fill",ch:"c5",tp:["schedc"],pts:"2%",q:`______ means the scheduler in SMP systems attempts to keep a process running on the same processor, to take advantage of its data being in that processor's cache memory.`,a:`<p class="k">Processor affinity</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:6,t:"fill",ch:"c9",tp:["paging"],pts:"2%",q:`In a paging system with three-level page tables, suppose TLB hit ratio is 80% and it takes 100 ns to access memory. The effective memory access time is ______.`,a:`<p class="k">160 ns</p><p>TLB hit：1 次記憶體存取 = 100 ns；TLB miss：查 3 層 page table + 1 次取資料 = 4 × 100 = 400 ns（忽略 TLB 查詢時間）。</p><p>EAT = 0.8 × 100 + 0.2 × 400 = 160 ns</p>`});
+add({s:"e2017f",sec:"II. Fill in the Blank",n:7,t:"fill",ch:"c9",tp:["paging"],pts:"2%",q:`Consider a computer system with a 32-bit virtual address and 4-KB page size. The system supports up to 512-MB of physical memory. Assume each page table entry is 4 bytes. If one-level paging is used, the size of the page table needed is ______. If inverted page table is used, the size of the table needed is ______.`,a:`<p class="k">4 MB；512 KB</p><p>One-level：page 數 = 2<sup>32</sup> / 2<sup>12</sup> = 2<sup>20</sup> 個 entry × 4 B = 4 MB。</p><p>Inverted：每個 physical frame 一個 entry，frame 數 = 2<sup>29</sup> / 2<sup>12</sup> = 2<sup>17</sup> × 4 B = 512 KB。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:1,t:"calc",ch:"c5",tp:["rtsched"],pts:"12%",q:`Consider two processes, P1 and P2, where p1=80, t1=40, p2=50, and t2=15. Using Gantt charts (till time 150) to illustrate the scheduling of these two processes using earliest-deadline-first (EDF) scheduling and rate-monotonic scheduling. (Note: p: period, t: processing time.) (6%)(6%)`,a:`<p>CPU 使用率 = 40/80 + 15/50 = 0.8。RM 中 P2 週期短，優先權較高。</p>
+${G([[0,15,"P2"],[15,50,"P1"],[50,65,"P2"],[65,70,"P1"],[70,80,"idle"],[80,100,"P1"],[100,115,"P2"],[115,135,"P1"],[135,150,"idle"]],"Rate-monotonic")}
+<p class="note">t=50 P2 第二次到達搶走 P1（P1 已做 35），P1 在 70 前做完；t=100 P2 又搶走 P1。沒有錯過 deadline。</p>
+${G([[0,15,"P2"],[15,55,"P1"],[55,70,"P2"],[70,80,"idle"],[80,100,"P1"],[100,115,"P2"],[115,135,"P1"],[135,150,"idle"]],"EDF")}
+<p class="note">t=50 P2 新 deadline 100，P1 deadline 80 較早，P1 繼續做到 55；t=100 P2 deadline 150 &lt; P1 deadline 160，換 P2。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:2,t:"calc",ch:"c10",tp:["pagerep"],pts:"9%",q:`Consider the following page reference string:<br><code>1, 2, 3, 4, 4, 1, 5, 1, 4, 2, 3, 4, 2, 5</code><br>How many page faults would occur for each of the following page replacement algorithms with four page frames? All page frames are initially empty.<br>(a) LRU (3%)　(b) FIFO (3%)　(c) optimal page replacement algorithm (3%)`,a:`<p class="k">(a) LRU = 8　(b) FIFO = 10　(c) OPT = 6</p>
+<p><b>FIFO</b>：1,2,3,4 → 4 次；5 換 1；1 換 2；2 換 3；3 換 4；4 換 5；5 換 1 → 共 10 次。</p>
+<p><b>LRU</b>：1,2,3,4 → 4；5 換 2（最久沒用）；2 換 3；3 換 5；5 換 1 → 共 8 次。</p>
+<p><b>OPT</b>：1,2,3,4 → 4；5 換 3（3 最晚才再用到）；3 換 1（1 之後不再用）→ 共 6 次。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:3,t:"essay",ch:"c6",tp:["sync"],pts:"6%",q:`Suppose a solution to the readers-writers problem is described below. Determine if it is correct and explain your answer. In the following codes, the <i>mutex</i> semaphore is used to ensure mutual exclusion when <i>readcount</i> is updated and the <i>wrt</i> semaphore is used to ensure mutual exclusion for the writers and used by the first or last reader that enters or exits the critical section. The <i>mutex</i> and <i>wrt</i> semaphores are initialized to 1 and <i>readcount</i> is initialized to 0.${C(`
+The structure of a writer:      The structure of a reader:
+  wait(wrt);                      wait(mutex);
+    ...                           readcount++;
+    writing is performed          signal(mutex);
+    ...                           if (readcount == 1)
+  signal(wrt);                        wait(wrt);
+                                    ...
+                                    reading is performed
+                                    ...
+                                  wait(mutex);
+                                  readcount--;
+                                  signal(mutex);
+                                  if (readcount == 0)
+                                      signal(wrt);`)}`,a:`<p class="k">不正確。</p><p>檢查 <code>readcount == 1</code>／<code>readcount == 0</code> 被放在 <code>signal(mutex)</code> 之後，不在 mutex 保護內。</p>
+<ul><li>情境：R1 執行 readcount++ → 1、signal(mutex)，還沒檢查就被切走；R2 再 readcount++ → 2。之後兩人檢查時 readcount 都是 2，沒有人 wait(wrt)，writer 可以和 readers 同時進入 → 違反互斥。</li>
+<li>離開時同理：兩個 reader 都看到 readcount == 0 會 signal(wrt) 兩次，讓 wrt 變 2，兩個 writer 可同時寫；或是都沒看到 0 而沒人 signal，writer 永遠等待。</li></ul>
+<p>正確寫法：<code>if (readcount == 1) wait(wrt);</code> 與 <code>if (readcount == 0) signal(wrt);</code> 都要放在 <code>wait(mutex)</code> 和 <code>signal(mutex)</code> 之間。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:4,t:"essay",ch:"c9",tp:["paging"],pts:"8%",q:`Draw the diagram for the address translation hardware required in a paging system with TLB. This diagram should depict how a logical address is translated into a physical address.`,a:`${C(`
+ CPU ──► logical address [ p | d ]
+                  │
+                  ▼  先查 TLB（associative，平行比對）
+         ┌──────────────────┐
+         │ page # │ frame # │── TLB hit ──► f ──┐
+         └──────────────────┘                    │
+                  │ TLB miss                     ▼
+                  ▼                    physical address [ f | d ] ──► physical memory
+         page table（在記憶體中，PTBR 指向）        ▲
+         p ──► 第 p 個 entry 取得 f ──────────────┘
+               （同時把 (p, f) 放入 TLB）`)}
+<p>步驟：logical address 拆成 page number p 與 offset d → 先查 TLB；命中直接得到 frame f；未命中再用 p 查記憶體中的 page table 取得 f，並更新 TLB → 實體位址 = f 接上 d。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:5,t:"calc",ch:"c8",tp:["deadlock"],pts:"12%",q:`A system has four processes and four resource types A, B, C, D. Resource type A has 5 instances, resource type B has 2 instances, resource type C has 5 instances, and resource type D has 6 instances. The current allocation and maximum needs are as follows:
+${T(["Process","Allocation A B C D","Max A B C D"],[["P1","1 1 1 1","1 1 2 2"],["P2","2 0 1 1","2 2 2 1"],["P3","1 1 0 1","2 1 3 1"],["P4","1 0 2 1","1 1 2 1"]])}
+Answer the following questions and explain your answers.<br>(a) Determine whether this system is in a safe state. (3%)<br>(b) Suppose now that process P1 requests two additional instances of type D, decide whether this request can be immediately granted. (3%)<br>(c) Suppose now that process P2 requests one additional instance of type C, decide whether this request can be immediately granted. (3%)<br>(d) Suppose now that process P3 requests one additional instance of type C, decide whether this request can be immediately granted. (3%)`,a:`<p>Allocation 合計 = (5, 2, 4, 4) → <b>Available = (0, 0, 1, 2)</b></p>
+${T(["Process","Need = Max − Allocation"],[["P1","0 0 1 1"],["P2","0 2 1 0"],["P3","1 0 3 0"],["P4","0 1 0 0"]])}
+<p><span class="k">(a) Safe。</span>P1 (0011 ≤ 0012) → Avail 1123；P4 (0100) → 2144；P2 (0210) → 4155；P3 (1030) → 5256。安全序列 &lt;P1, P4, P2, P3&gt;。</p>
+<p><span class="k">(b) 不能。</span>P1 對 D 的 Need 只有 1，要求 2 超過它宣告的最大需求，屬於錯誤請求。</p>
+<p><span class="k">(c) 不能。</span>Request (0,0,1,0) ≤ Need、≤ Available，假設配置後 Available = (0,0,0,2)。此時 P1 需 C=1、P2 需 B=2、P3 需 C=3、P4 需 B=1，沒有人能完成 → unsafe，所以要等。</p>
+<p><span class="k">(d) 不能。</span>同理配置後 Available = (0,0,0,2)，P3 Need 變 (1,0,2,0)，四個 process 都無法滿足 → unsafe。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:6,t:"calc",ch:"c9",tp:["paging"],pts:"12%",q:`(a) What would the page table look like for the process shown in the left figure? If each page is 4 Kbytes, what is the physical address for the logical address 10000? (3%)(3%)<br>(b) What would the segment table look like for the process shown in the right figure? (4%) What is the physical address for the logical address &lt;2,110&gt;? (2%)
+<p class="note">左圖：logical memory 0–5 為 A B C D E F；physical memory frame 1 = C、4 = D、6 = B、9 = F、12 = A、13 = E。右圖：segment 0（subroutine）、1（sqrt）、2（main program）、3（stack），physical memory 標示 1400 / segment 2 / 2200、4000 / segment 3 / 5200、7200 / segment 0 / 7700、9000 / segment 1 / 9400。</p>`,a:`<p class="k">(a)</p>${T(["page","0 (A)","1 (B)","2 (C)","3 (D)","4 (E)","5 (F)"],[["frame",12,6,1,4,13,9]])}
+<p>10000 / 4096 → page 2，offset = 10000 − 8192 = 1808；page 2 在 frame 1 → 實體位址 = 1 × 4096 + 1808 = <b>5904</b></p>
+<p class="k">(b)</p>${T(["segment","base","limit"],[[0,7200,500],[1,9000,400],[2,1400,800],[3,4000,1200]])}
+<p>&lt;2,110&gt;：110 &lt; limit 800，合法 → 1400 + 110 = <b>1510</b></p>
+<p class="note">Frame 與 segment 邊界是依考卷照片判讀；若原圖數字不同，方法一樣：查表、檢查 offset &lt; limit、base + offset。</p>`});
+add({s:"e2017f",sec:"III. Questions",n:7,t:"essay",ch:"c6",tp:["sync","deadlock"],pts:"6%",q:`Deadlock can occur in the dining-philosophers problem if the philosophers obtain the chopsticks one at a time using semaphore operations. Assume there are five philosophers and five chopsticks. If we allow at most four philosophers to be sitting simultaneously at the table, can it be deadlock-free? Explain your answer and draw the resource allocation-graph. (2%)(4%)`,a:`<p class="k">可以，不會 deadlock。</p><p>4 個哲學家搶 5 支筷子，依鴿籠原理就算每人都先拿起一支，桌上還剩 1 支，至少有一位能拿到第二支、吃完並放下兩支筷子，其他人就能接著吃。Circular wait 無法形成。</p>
+${C(`
+ Resource-allocation graph（最壞情況：4 人各拿 1 支）
+ Ph1 ◄── C1     Ph1 ──► C2 ◄── Ph2   (C2 已給 Ph2)
+ Ph2 ──► C3 ◄── Ph3
+ Ph3 ──► C4 ◄── Ph4
+ Ph4 ──► C5（C5 空著）→ 指派給 Ph4，Ph4 吃完釋放 C4、C5
+ → 圖上沒有 cycle 能把所有人卡住`)}`});
+add({s:"e2017f",sec:"III. Questions",n:8,t:"essay",ch:"c6",tp:["sync"],pts:"9%",q:`(a) Given two processes, the structure of each process is as follows. Explain why it is an incorrect solution to the critical-section problem. (4%)${C(`
+shared data:  int turn;   // turn = 0 or 1; initially
+do {
+    while (turn != i);
+        critical section
+    turn = j;
+        remainder section
+} while (1);                       process Pi`)}
+(b) The following is an incorrect solution of using TestAndSet() instruction to implement semaphore operations wait(s) and signal(s). Please give a scenario showing why it is incorrect. (5%)${C(`
+void wait(s)                      void signal(s) {
+{                                     while TestAndSet(lock)
+    while TestAndSet(lock)                ;   // do no-op
+        ;   // do no-op               s = s + 1;
+    while (s <= 0)                    lock = false;
+        ;   // do no-op           }
+    s = s - 1;
+    lock = false;
+}`)}`,a:`<p><span class="k">(a)</span> 滿足 mutual exclusion，但違反 <b>progress</b>：兩個 process 必須嚴格輪流。若 turn = 0 而 P0 在 remainder section 不想進入，P1 想進也進不去，只能等 P0 再進出一次。</p>
+<p><span class="k">(b)</span> wait() 在<b>持有 lock</b> 的情況下忙等 <code>s &lt;= 0</code>。情境：s = 0，P0 呼叫 wait，取得 lock 後卡在 <code>while (s&lt;=0)</code>；P1 想呼叫 signal 增加 s，但 lock 被 P0 拿著，P1 永遠卡在 TestAndSet 迴圈 → s 永遠不會變大，兩者互等 = deadlock。</p>`});
+
+/* ===== 2017 期中考 ===== */
+add({s:"e2017m",sec:"I. Fill in the Blank",n:1,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system can suffer a failure of any single component and still continue operation.`,a:`<p class="k">fault-tolerant</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:2,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system composes of two or more individual systems or nodes joined together. It is usually used to provide high availability or high-performance computing environments.`,a:`<p class="k">clustered</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:3,t:"fill",ch:"c1",tp:["virt"],pts:"2%",q:`What virtualization software do you use to build your virtual machines? ______`,a:`<p class="k">VirtualBox</p><p>（或 VMware、Parallels）</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:4,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`In a ______ system, all processors are peers and no boss-worker relationship exists between processors. Therefore, each processor performs all tasks within OS.`,a:`<p class="k">symmetric multiprocessing (SMP)</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:5,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`An ______ system is a combination of computer hardware and software, and perhaps additional mechanical or other parts, designed to perform specific tasks.`,a:`<p class="k">embedded</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:6,t:"fill",ch:"c1",tp:["multiprog"],pts:"2%",q:`In a ______ system, OS keeps several jobs in memory simultaneously. When one job being executed needs to wait, the OS switches to and executes another job.`,a:`<p class="k">multiprogramming</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:7,t:"fill",ch:"c2",tp:["kstruct"],pts:"2%",q:`In a ______ system, OS contains a large amount of functionality to be combined into one level. OS is written as a collection of procedures, each of which can call any of the other ones whenever it needs to.`,a:`<p class="k">monolithic</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:8,t:"fill",ch:"c1",tp:["boot"],pts:"2%",q:`An initial program that initializes all aspects of the system, loads OS kernel, start executing the OS is ______.`,a:`<p class="k">bootstrap program</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:9,t:"fill",ch:"c3",tp:["procmem"],pts:"2%",q:`When arranging the CPU to run another process, the system must save the state of the old process and load the saved state for the new process via a ______.`,a:`<p class="k">context switch</p><p>（狀態存放在 PCB；HackMD 學姊答 PCB，但題目描述的動作是 context switch。）</p>`});
+add({s:"e2017m",sec:"I. Fill in the Blank",n:10,t:"fill",ch:"c4",tp:["tmodel"],pts:"2%",q:`Consider a multithreaded program running on a multicore system. If a thread makes a blocking system call, the entire process will block for the ______ model.`,a:`<p class="k">many-to-one</p>`});
+add({s:"e2017m",sec:"II. Questions",n:1,t:"essay",ch:"c1",tp:["dual"],pts:"13%",q:`What is dual-mode operation? Using trap, system call, and timer interrupt as examples to discuss why modern operating systems take advantage of hardware-supported dual-mode operation. (4%)(9%)`,a:A_DUAL});
+add({s:"e2017m",sec:"II. Questions",n:2,t:"essay",ch:"c2",tp:["kstruct"],pts:"16%",q:`Describe the microkernel and the modular kernel approach in operating-system design. Compare their strengths and weaknesses in terms of extensibility. (8%)(8%)`,a:`${A_MICRO}${A_LKM}<p><b>Extensibility 比較</b>：兩者都容易擴充。Microkernel 把新服務加在 user space，不必修改 kernel，也比較安全；但服務之間要靠 message passing，擴充越多效能越差。Modular（LKM）把新功能寫成 module 動態載入 kernel，不用重開機或重編 kernel，效能好；但 module 跑在 kernel mode，寫壞會影響整個系統。</p>`});
+add({s:"e2017m",sec:"II. Questions",n:3,t:"essay",ch:"c3",tp:["ipc"],pts:"12%",q:`Please take the producer-consumer problem as an example to discuss the strengths and weaknesses of using two different models of interprocess communication to solve the producer-consumer problem. Draw the diagram for each model. (8%)(4%)`,a:A_IPC});
+add({s:"e2017m",sec:"II. Questions",n:4,t:"essay",ch:"c4",tp:["tmodel"],pts:"8%",q:`What is the one-to-one multithreading model? Discuss its strengths and weaknesses. (2%)(6%)`,a:A_ONE2ONE});
+add({s:"e2017m",sec:"II. Questions",n:5,t:"calc",ch:"c4",tp:["forkout"],pts:"10%",q:`What would be the output for the following C program using UNIX <i>fork()</i> and Pthreads API?${C(String.raw`
+#include <pthread.h>
+#include <stdio.h>
+
+int value = 1;
+
+void runner()
+{
+    value++;
+    printf("(a) %d ", value);
+}
+
+void *start(void *param)
+{
+    runner();
+    value++;
+    pthread_exit(0);
+}
+
+int main(int argc, char *argv[])
+{
+    int pid;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    value++;
+    pid = fork();
+    value++;
+    if (pid == 0) {              /* child process */
+        value++;
+        printf("(b) %d ", value);
+        pthread_attr_init(&attr);
+        value++;
+        pthread_create(&tid, &attr, start, NULL);
+        pthread_join(tid, NULL);
+        value++;
+    }
+    else if (pid > 0) {          /* parent process */
+        value++;
+        wait(NULL);
+        runner();
+    }
+    value++;
+    printf("(c) %d ", value);
+}`)}`,a:`<p class="k">(b) 4　(a) 6　(c) 9　(a) 5　(c) 6</p>
+<ul><li>value++ → 2，fork，父子各自 ++ → 3。</li>
+<li>Child：++ → 4，印 (b) 4；++ → 5；thread 執行 runner：++ → 6 印 (a) 6，再 ++ → 7；join 後 ++ → 8；if 外 ++ → 9 印 (c) 9。</li>
+<li>Parent：++ → 4，wait 到 child 結束才繼續；runner：++ → 5 印 (a) 5；++ → 6 印 (c) 6。</li>
+<li>因為 parent 有 wait(NULL)，輸出順序固定。</li></ul>`});
+add({s:"e2017m",sec:"II. Questions",n:6,t:"calc",ch:"c3",tp:["forkout"],pts:"4%",q:`Including the initial process, how many processes are created by the following program? Explain your answer.${C(`
+#include <stdio.h>
+#include <unistd.h>
+void main() {
+    int i;
+    for (i = 0; i < 2; i++)
+        fork();
+    return;
+}`)}`,a:`<p class="k">4 個</p><p>i = 0：1 個 process fork 成 2 個；i = 1：這 2 個各自再 fork 一次 → 4 個。迴圈跑 n 次共 2<sup>n</sup> 個 process。</p>`});
+add({s:"e2017m",sec:"II. Questions",n:7,t:"calc",ch:"c5",tp:["prisched"],pts:"9%",q:`A system distinguishes two classes of processes: real-time process and normal process. Basically, the system uses <b>preemptive priority-based</b> scheduling algorithm. Real-time processes are assigned with the highest priority and scheduled in FCFS order. Normal processes are assigned with the lowest priority and scheduled in Round-Robin order with time quantum 2. The table below shows four processes that need to be scheduled. The length of the CPU-burst time is given in milliseconds.<br>(a) Please draw the Gantt chart. (4%)<br>(b) Please show the waiting time for each process and the average waiting time. (5%)
+${T(["Process","Arrival Time","CPU Burst","Class"],[["P1",1,7,"Normal"],["P2",7,3,"Real-time"],["P3",0,3,"Normal"],["P4",4,1,"Real-time"]])}`,a:`${G([[0,2,"P3"],[2,4,"P1"],[4,5,"P4"],[5,6,"P3"],[6,7,"P1"],[7,10,"P2"],[10,14,"P1"]],"(a) Gantt chart")}
+${T(["Process","Waiting"],[["P1","14 − 1 − 7 = 6"],["P2","10 − 7 − 3 = 0"],["P3","6 − 0 − 3 = 3"],["P4","5 − 4 − 1 = 0"]])}
+<p class="k">平均 waiting time = (6 + 0 + 3 + 0) / 4 = 2.25 ms</p>`});
+add({s:"e2017m",sec:"II. Questions",n:8,t:"calc",ch:"c5",tp:["rtsched"],pts:"8%",q:`Consider two processes, P1 and P2, where p1=70, t1=30, p2=40, and t2=15. Using Gantt charts (till time 140) to illustrate the scheduling of these two processes using earliest-deadline-first (EDF) scheduling and rate-monotonic scheduling. (Note: p: period, t: processing time.) (4%)(4%)`,a:`<p>使用率 = 30/70 + 15/40 ≈ 0.80。RM：P2 週期 40 較短，優先權高。</p>
+${G([[0,15,"P2"],[15,40,"P1"],[40,55,"P2"],[55,60,"P1"],[60,70,"idle"],[70,80,"P1"],[80,95,"P2"],[95,115,"P1"],[115,120,"idle"],[120,135,"P2"],[135,140,"idle"]],"Rate-monotonic")}
+${G([[0,15,"P2"],[15,45,"P1"],[45,60,"P2"],[60,70,"idle"],[70,80,"P1"],[80,95,"P2"],[95,115,"P1"],[115,120,"idle"],[120,135,"P2"],[135,140,"idle"]],"EDF")}
+<p class="note">EDF 在 t=40：P1 deadline 70 &lt; P2 deadline 80，P1 繼續做到 45；t=80：P2 deadline 120 &lt; P1 deadline 140，P2 搶先。兩種排法都沒有錯過 deadline。</p>`});
+
+/* ===== 2019 期中考 ===== */
+add({s:"e2019m",sec:"I. Fill in the Blanks",n:1,t:"fill",ch:"c2",tp:["kstruct"],pts:"2%",q:`In a ______ system, OS contains a large amount of functionality to be combined into one level. OS is written as a collection of procedures, each of which can call any of the other ones whenever it needs to.`,a:`<p class="k">monolithic</p>`});
+add({s:"e2019m",sec:"I. Fill in the Blanks",n:2,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system composes of two or more individual systems or nodes joined together. It is usually used to provide high availability or high-performance computing environments.`,a:`<p class="k">clustered</p>`});
+add({s:"e2019m",sec:"I. Fill in the Blanks",n:3,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system functions correctly only if it returns the correct result within its time constraints.`,a:`<p class="k">real-time</p>`});
+add({s:"e2019m",sec:"I. Fill in the Blanks",n:4,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`An ______ system is a combination of computer hardware and software, and perhaps additional mechanical or other parts, designed to perform specific tasks.`,a:`<p class="k">embedded</p>`});
+add({s:"e2019m",sec:"I. Fill in the Blanks",n:5,t:"fill",ch:"c1",tp:["boot"],pts:"2%",q:`An initial program that initializes all aspects of the system, loads OS kernel, starts executing the OS is ______.`,a:`<p class="k">bootstrap program</p>`});
+add({s:"e2019m",sec:"II. Questions",n:1,t:"essay",ch:"c1",tp:["dual"],pts:"15%",q:`Give examples and describe the differences between trap, system call, and interrupt. Using trap, system call, and timer interrupt as examples to discuss why modern operating systems take advantage of hardware-supported dual-mode operation. (9%)(6%)`,a:A_DUAL});
+add({s:"e2019m",sec:"II. Questions",n:2,t:"essay",ch:"c2",tp:["kstruct"],pts:"24%",q:`Answer the following questions regarding the operating-system design.<br>(a) Draw the diagram of a typical microkernel and describe the microkernel approach. (4%)(4%)<br>(b) Describe the loadable kernel modules approach. (4%)<br>(c) For the microkernel and the loadable kernel modules approach, compare their strengths and weaknesses in terms of extensibility, performance, and security. Explain your answer. (12%)`,a:`<p class="k">(a)</p>${A_MICRO}<p class="k">(b)</p>${A_LKM}<p class="k">(c)</p>${A_MICRO_LKM}`});
+add({s:"e2019m",sec:"II. Questions",n:3,t:"essay",ch:"c3",tp:["ipc"],pts:"16%",q:`What is the producer-consumer problem? To solve the producer-consumer problem, discuss the strengths and weaknesses of using two different models of interprocess communication. Draw the diagram for each communication models. (2%)(10%)(4%)`,a:A_IPC});
+add({s:"e2019m",sec:"II. Questions",n:4,t:"essay",ch:"c3",tp:["procmem"],pts:"12%",q:`Draw the diagram and describe the memory layout of a process. What is the context of a process? Describe the actions taken by a kernel to context-switch between processes. (4%)(4%)(4%)`,a:A_MEMLAYOUT});
+add({s:"e2019m",sec:"II. Questions",n:5,t:"essay",ch:"c4",tp:["tmodel"],pts:"11%",q:`Answer the following questions regarding the one-to-one multithreading model.<br>(a) Draw the diagram and describe the one-to-one multithreading model. (3%)<br>(b) Discuss whether a multithreaded application can perform better on a multiprocessor system than on a single-processor system. Explain your answer. (4%)<br>(c) On a single-processor system, can an application using a multithreaded solution perform better than using a single-threaded solution? Explain your answer. (4%)`,a:`<p class="k">(a)</p>${A_ONE2ONE}<p class="k">(b) 可以。</p><p>One-to-one 下每個 user thread 有自己的 kernel thread，多處理器可以把它們排到不同 CPU 上真正平行執行；單處理器同一時間只能跑一個。</p><p class="k">(c) 視情況，通常可以。</p><p>單處理器上無法平行，CPU 密集的工作拆成多 thread 反而多了 context switch 成本。但若程式常做 blocking I/O，one-to-one 讓一個 thread 等 I/O 時其他 thread 繼續用 CPU（concurrency），整體反應時間與吞吐量會比單執行緒好。（HackMD 學姊答 no，是以純計算、many-to-one 角度看。）</p>`});
+add({s:"e2019m",sec:"II. Questions",n:6,t:"calc",ch:"c4",tp:["forkout"],pts:"12%",q:`What would be the output for the following C program using UNIX <i>fork()</i> and Pthreads API?${C(String.raw`
+#include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int value = 1;
+
+void *start(void *param)
+{
+    printf(" (a) %d \n", value);
+    value++;
+    pthread_exit(0);
+    value++;
+}
+
+void main()
+{
+    int pid;
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    printf(" (b) %d \n", value);
+    pid = fork();
+    value++;
+    if (pid == 0) {              /* child process */
+        value++;
+        pthread_attr_init(&attr);
+        pthread_create(&tid, &attr, start, NULL);
+        pthread_join(tid, NULL);
+        printf(" (c) %d \n", value);
+        value++;
+    }
+    else if (pid > 0) {          /* parent process */
+        value++;
+        wait(NULL);
+        printf(" (d) %d \n", value);
+        value++;
+    }
+    printf(" (e) %d \n", value);
+    value++;
+}`)}`,a:`${C(`
+ (b) 1
+ (a) 3
+ (c) 4
+ (e) 5
+ (d) 3
+ (e) 4`)}<ul><li>fork 前印 (b) 1；fork 後父子各 ++ → 2。</li><li>Child：++ → 3；thread 印 (a) 3，++ → 4，pthread_exit 後面那行不會執行；join 後印 (c) 4，++ → 5，印 (e) 5。</li><li>Parent：++ → 3，wait 等 child 結束，印 (d) 3，++ → 4，印 (e) 4。</li></ul>`});
+
+/* ===== 2020 期中考 ===== */
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:1,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system composes of two or more individual systems or nodes joined together. It is usually used to provide high availability or high-performance computing environments.`,a:`<p class="k">clustered</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:2,t:"fill",ch:"c1",tp:["multiprog"],pts:"2%",q:`In a ______ system, the CPU executes multiple jobs by rapidly switching among them, the illusion of several jobs executing simultaneously is created.`,a:`<p class="k">time-sharing（multitasking）</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:3,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system functions correctly only if it returns the correct result within its time constraints.`,a:`<p class="k">real-time</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:4,t:"fill",ch:"c1",tp:["boot"],pts:"2%",q:`An initial program that initializes all aspects of the system, loads OS kernel, starts executing the OS is ______.`,a:`<p class="k">bootstrap program</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:5,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`______ systems have two or more processors, sharing the computer bus and sometimes the clock, memory, and peripheral devices.`,a:`<p class="k">Multiprocessor（parallel / tightly coupled）</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:6,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`In ______ systems, a CPU has faster access to some parts of memory than to other parts.`,a:`<p class="k">NUMA（Non-Uniform Memory Access）</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:7,t:"fill",ch:"c1",tp:[],pts:"2%",q:`______ refers to a kind of software that not only makes source code available but also is licensed to allow no-cost use, redistribution, and modification.`,a:`<p class="k">Free software（open-source software）</p><p>課本：free software 不只公開原始碼，還授權免費使用、再散布與修改（由 Free Software Foundation 推動）。</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:8,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`A ______ system can suffer a failure of any single component and still continue operation.`,a:`<p class="k">fault-tolerant</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:9,t:"fill",ch:"c1",tp:["systype"],pts:"2%",q:`An ______ system is a combination of computer hardware and software, and perhaps additional mechanical or other parts, designed to perform specific tasks.`,a:`<p class="k">embedded</p>`});
+add({s:"e2020m",sec:"I. Fill in the Blanks",n:10,t:"fill",ch:"c1",tp:["virt"],pts:"2%",q:`______ is a technology that allows us to abstract the hardware of a single computer (CPU, memory, disk drives, network interface cards…) into several different execution environments, thereby creating the illusion that each separate environment is running on its own private computer.`,a:`<p class="k">Virtualization</p>`});
+add({s:"e2020m",sec:"II. Questions",n:1,t:"essay",ch:"c1",tp:["multiprog"],pts:"4%",q:`Draw the diagram and discuss how the OS increases CPU utilization in a multiprogramming system.`,a:A_MULTIPROG});
+add({s:"e2020m",sec:"II. Questions",n:2,t:"essay",ch:"c1",tp:["dual"],pts:"24%",q:`Give examples and describe what traps, system calls, and interrupts are. Draw the diagrams and use trap, system call, and timer interrupt as examples to discuss why modern operating systems take advantage of hardware-supported dual-mode operation. (9%)(9%)(6%)`,a:A_DUAL});
+add({s:"e2020m",sec:"II. Questions",n:3,t:"essay",ch:"c2",tp:["kstruct"],pts:"41%",q:`Answer the following questions regarding the operating-system design.<br>(a) Describe the microkernel approach, the monolithic kernel approach, the loadable kernel modules approach. (9%)<br>(b) Regarding the <b>extensibility</b> issue, for microkernel, monolithic kernel, and loadable kernel modules approach, please compare their strengths and weaknesses. Explain your answer. (12%)<br>(c) Regarding the <b>performance</b> issue, for microkernel, monolithic kernel, and loadable kernel modules approach, please compare their strengths and weaknesses. Explain your answer. (12%)<br>(d) Regarding the <b>security</b> issue, for microkernel and loadable kernel modules approach, please compare their strengths and weaknesses. Explain your answer. (8%)`,a:`${A_KTABLE}<p><b>(b) Extensibility</b>：microkernel 與 LKM 好（新功能放 user space 或寫成 module），monolithic 差（所有功能綁在一起，要改 kernel 重編）。</p><p><b>(c) Performance</b>：monolithic 最快（沒有分層、函式直接呼叫，建立 process 只要進出 kernel 一次）≈ LKM（module 在 kernel 內直接呼叫）&gt; microkernel（要 message passing、頻繁 mode switch）。</p><p><b>(d) Security</b>：microkernel &gt; LKM。microkernel 服務在 user mode，服務失敗只像 user process 死掉；LKM 的 module 在 kernel mode，寫錯會讓系統當機或被利用。</p>`});
+add({s:"e2020m",sec:"II. Questions",n:4,t:"essay",ch:"c3",tp:["ipc"],pts:"10%",q:`Draw the diagram and discuss the strengths and weaknesses of using two different interprocess communication models.`,a:A_IPC});
+add({s:"e2020m",sec:"II. Questions",n:5,t:"essay",ch:"c3",tp:["procmem"],pts:"11%",q:`Draw the diagram and describe the memory layout of a process. What is the context of a process? Draw the diagram and describe the actions taken by a kernel to context-switch between processes. (4%)(3%)(4%)`,a:A_MEMLAYOUT});
+
+/* ===== HackMD 排程考題 ===== */
+add({s:"hmS",sec:"Questions",n:1,t:"calc",ch:"c5",tp:["prisched"],pts:"—",q:`A system distinguishes two classes of processes: real-time and normal. The system uses <b>preemptive priority-based</b> scheduling. Real-time processes have the highest priority and are scheduled in FCFS order; normal processes have the lowest priority and are scheduled in Round-Robin order with time quantum 2. Draw the Gantt chart, and show the waiting time for each process and the average waiting time.
+${T(["Process","Arrival Time","CPU Burst","Priority"],[["P1",8,3,"Real-time"],["P2",1,1,"Real-time"],["P3",0,6,"Normal"],["P4",3,3,"Real-time"],["P5",4,8,"Normal"]])}
+<p class="note">照片中題目敘述被裁掉，只看得到表格與「Normal：RR quantum 2；Real-time：FCFS」的筆記，敘述依同系列考題補上。</p>`,a:`${G([[0,1,"P3"],[1,2,"P2"],[2,3,"P3"],[3,6,"P4"],[6,8,"P3"],[8,11,"P1"],[11,13,"P5"],[13,15,"P3"],[15,21,"P5"]],"Gantt chart")}
+${T(["Process","Waiting"],[["P1","11 − 8 − 3 = 0"],["P2","2 − 1 − 1 = 0"],["P3","15 − 0 − 6 = 9"],["P4","6 − 3 − 3 = 0"],["P5","21 − 4 − 8 = 9"]])}
+<p class="k">平均 waiting time = 18 / 5 = 3.6 ms</p>
+<p class="note">假設被 real-time 搶走的 normal process 回到 normal queue 最前面；t=8 P1 到達與 P3 用完 quantum 同時發生，P3 排到 P5 後面。</p>`});
+add({s:"hmS",sec:"Questions",n:2,t:"calc",ch:"c5",tp:["rtsched"],pts:"40%",q:`Consider two processes, P1 and P2, where p1=75, t1=35, p2=40, and t2=15. Using Gantt charts (till time 140) to illustrate the scheduling of these two processes using earliest-deadline-first (EDF) scheduling and rate-monotonic scheduling. (Note: p: period, t: processing time.) (20%)(20%)`,a:`<p>使用率 = 35/75 + 15/40 ≈ 0.84。RM：P2 週期短，優先。</p>
+${G([[0,15,"P2"],[15,40,"P1"],[40,55,"P2"],[55,65,"P1"],[65,75,"idle"],[75,80,"P1"],[80,95,"P2"],[95,120,"P1"],[120,135,"P2"],[135,140,"P1"]],"Rate-monotonic")}
+${G([[0,15,"P2"],[15,50,"P1"],[50,65,"P2"],[65,75,"idle"],[75,80,"P1"],[80,95,"P2"],[95,125,"P1"],[125,140,"P2"]],"EDF")}
+<p class="note">EDF t=40：P1 deadline 75 &lt; P2 deadline 80，P1 做完才換 P2；t=120：P1 deadline 150 &lt; P2 deadline 160，P1 先做完到 125。兩者都沒有錯過 deadline。</p>`});
+
+/* ===== 2023 小考 ===== */
+const sched6=["(a) first come first served","(b) shortest job first","(c) priority-based","(d) round-robin","(e) multi-level queue","(f) multi-level feedback queue"];
+add({s:"q2023",sec:"I. Selection",n:1,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Whenever the CPU becomes idle, OS must select one of the processes to run from the${opts(["(a) ready queue","(b) wait queue","(c) device queue","(d) I/O queue","(e) priority queue"])}`,a:`<p class="k">(a) ready queue</p>`});
+add({s:"q2023",sec:"I. Selection",n:2,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`For nonpreemptive scheduling, CPU-scheduling decisions may take place when a process${opts(["(a) switches from new to ready state","(b) switches from waiting to ready state","(c) switches from running to waiting state","(d) switches from running to ready state","(e) switches from ready to running state","(f) terminates"])}`,a:`<p class="k">(c)(f)</p>`});
+add({s:"q2023",sec:"I. Selection",n:3,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`For preemptive scheduling, CPU-scheduling decisions may take place when a process${opts(["(a) switches from new to ready state","(b) switches from waiting to ready state","(c) switches from running to waiting state","(d) switches from running to ready state","(e) switches from ready to running state","(f) terminates"])}`,a:`<p class="k">(b)(c)(d)(f)</p><p>四種時機都可能排程；其中 (b)(d) 是 preemptive 才有的（新來或回到 ready 的 process 可能搶 CPU、timer 中斷把 running 換下）。若題目只要「多出來的時機」則答 (b)(d)。</p>`});
+add({s:"q2023",sec:"I. Selection",n:4,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Which scheduling is provably optimal, providing minimum average waiting time for a given set of processes?${opts(sched6)}`,a:`<p class="k">(b) shortest job first</p>`});
+add({s:"q2023",sec:"I. Selection",n:5,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Which scheduling is designed especially for time-sharing systems? Each process gets a small amount of time quantum. When time quantum is expired, the process is preempted. It is${opts(sched6.slice(0,5))}`,a:`<p class="k">(d) round-robin</p>`});
+add({s:"q2023",sec:"I. Selection",n:6,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Which scheduling can cause starvation?${opts(["(a) first come first served","(b) shortest job first","(c) priority-based","(d) round-robin","(e) multi-level feedback queue"])}`,a:`<p class="k">(b)(c)</p><p>長工作可能一直被短工作插隊、低優先權一直等不到。解法是 aging。MLFQ 一般設計會把等太久的往上移，避免 starvation。</p>`});
+add({s:"q2023",sec:"I. Selection",n:7,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Which scheduling can cause convoy effect for short processes to wait for very long processes?${opts(sched6)}`,a:`<p class="k">(a) first come first served</p>`});
+add({s:"q2023",sec:"I. Selection",n:8,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`For a system running interactive programs, response time is the most important criteria. Which of the following scheduling algorithms are suitable for this system?${opts(sched6.slice(0,5))}`,a:`<p class="k">(d) round-robin（也可加 (e) multi-level queue）</p><p>RR 讓每個 process 很快拿到第一次 CPU；multi-level queue 通常讓前景互動 queue 用 RR 並給較高優先權。</p>`});
+add({s:"q2023",sec:"I. Selection",n:9,t:"mc",ch:"c5",tp:["rtsched"],pts:"2%",q:`Which scheduling schedules periodic tasks using a static priority policy with preemption?${opts(["(a) first come first served","(b) shortest job first","(c) priority-based","(d) round-robin","(e) multi-level queue","(f) multi-level feedback queue","(g) rate monotonic","(h) earliest-deadline-first"])}`,a:`<p class="k">(g) rate monotonic</p><p>週期越短優先權越高，而且固定不變；EDF 是動態優先權。</p>`});
+add({s:"q2023",sec:"I. Selection",n:10,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`On systems with which kind of run queue, load balancing among multi-cores is often unnecessary?${opts(["(a) a common run queue","(b) multi-level queue","(c) multi-level feedback queue","(d) each processor has its own private ready queue"])}`,a:`<p class="k">(a) a common run queue</p><p>所有核心從同一個 queue 拿工作，自然平均；每顆有私有 queue 才需要 push / pull migration。</p>`});
+add({s:"q2023",sec:"I. Selection",n:11,t:"mc",ch:"c5",tp:["schedc"],pts:"2%",q:`Most SMP systems attempt to keep a process running on the same processor to take advantage of its data being in that processor's cache memory. It is called${opts(["(a) processor affinity","(b) cache consistency","(c) admission control","(d) push migration","(e) pull migration"])}`,a:`<p class="k">(a) processor affinity</p>`});
+add({s:"q2023",sec:"II. Fill-in blanks",n:1,t:"fill",ch:"c5",tp:["schedc"],pts:"2%",q:`The solution which gradually increases the priority of processes that wait in the system for a long time to solve the problem of starvation is ______.`,a:`<p class="k">aging</p>`});
+add({s:"q2023",sec:"II. Fill-in blanks",n:2,t:"fill",ch:"c5",tp:["systype"],pts:"2%",q:`A ______ system functions correctly only if it returns the correct result within its time constraints.`,a:`<p class="k">real-time</p>`});
+add({s:"q2023",sec:"II. Fill-in blanks",n:3,t:"fill",ch:"c5",tp:["rtsched"],pts:"2%",q:`______ is quite important, which means the scheduler either admits the process, guaranteeing that the process will complete on time, or rejects the request as impossible if it cannot guarantee that the task will be serviced by its deadline.`,a:`<p class="k">Admission control</p>`});
+add({s:"q2023",sec:"III. Questions",n:1,t:"calc",ch:"c5",tp:["rtsched"],pts:"30%",q:`Consider two processes, P1 and P2, where p1=70, t1=30, p2=40, and t2=15. Using Gantt charts (till time 170) to illustrate the scheduling of these two processes using earliest-deadline-first (EDF) scheduling and rate-monotonic scheduling. (Note: p: period, t: processing time.) (15%)(15%)`,a:`${G([[0,15,"P2"],[15,40,"P1"],[40,55,"P2"],[55,60,"P1"],[60,70,"idle"],[70,80,"P1"],[80,95,"P2"],[95,115,"P1"],[115,120,"idle"],[120,135,"P2"],[135,140,"idle"],[140,160,"P1"],[160,170,"P2"]],"Rate-monotonic")}
+${G([[0,15,"P2"],[15,45,"P1"],[45,60,"P2"],[60,70,"idle"],[70,80,"P1"],[80,95,"P2"],[95,115,"P1"],[115,120,"idle"],[120,135,"P2"],[135,140,"idle"],[140,160,"P1"],[160,170,"P2"]],"EDF")}
+<p class="note">同 2017 期中考第 8 題，延長到 170：t=160 P2 第 5 次到達（deadline 200），比 P1（deadline 210）早，所以兩種排法都換 P2，P1 剩 10 留到之後做。</p>`});
+add({s:"q2023",sec:"III. Questions",n:2,t:"calc",ch:"c5",tp:["prisched"],pts:"42%",q:`A system uses <b>preemptive priority-based</b> scheduling algorithm. The table below shows four processes that need to be scheduled. The length of the CPU-burst time is given in milliseconds. Please draw the Gantt chart. Show the waiting time for each process and the average waiting time.
+${T(["Process","Arrival Time","CPU Burst","Priority"],[["P1",1,6,"normal"],["P2",3,3,"high"],["P3",0,8,"normal"],["P4",6,5,"high"]])}
+Answer the following questions using<br>(a) For processes with the same priority, they are scheduled in shortest-remaining-time-first order. (14%)<br>(b) For processes with the high priority, they are scheduled in FCFS order. Normal processes are assigned with the lowest priority and scheduled in round-robin order with time quantum 2. For a process preempted by a higher-priority process, if it does not run out of its given time quantum, the preempted process is placed at the head of the run queue to wait for execution. (28%)`,a:`<p class="k">(a) 同優先權用 SRTF</p>
+${G([[0,1,"P3"],[1,3,"P1"],[3,6,"P2"],[6,11,"P4"],[11,15,"P1"],[15,22,"P3"]])}
+${T(["Process","Waiting"],[["P1","15 − 1 − 6 = 8"],["P2","6 − 3 − 3 = 0"],["P3","22 − 0 − 8 = 14"],["P4","11 − 6 − 5 = 0"]])}
+<p>平均 = 22 / 4 = <b>5.5 ms</b>。（t=1 P1 剩 6 &lt; P3 剩 7，P1 搶到 CPU。）</p>
+<p class="k">(b) high：FCFS；normal：RR q=2</p>
+${G([[0,2,"P3"],[2,3,"P1"],[3,6,"P2"],[6,11,"P4"],[11,13,"P1"],[13,15,"P3"],[15,17,"P1"],[17,19,"P3"],[19,20,"P1"],[20,22,"P3"]])}
+${T(["Process","Waiting"],[["P1","20 − 1 − 6 = 13"],["P2","0"],["P3","22 − 0 − 8 = 14"],["P4","0"]])}
+<p>平均 = 27 / 4 = <b>6.75 ms</b>。t=3 P1 被 P2 搶走時 quantum 還沒用完，放回 queue 最前面，所以 t=11 由 P1 先跑。</p>`});
+
+/* ===== 期中考答案卷 A（111 級） ===== */
+const recon=`<span class="tag warn">題目卷未保留，依答案卷回推</span>`;
+add({s:"e2024m",sec:"I. 填空",n:"1–8",t:"fill",ch:"c1",tp:["systype","boot","multiprog","kstruct"],pts:"—",q:`${recon}<p>答案卷上第一大題 8 格填空，作答為：start、layer、monolithic、multiprocessor、clustered、NUMA、Bootstrap program、Time-Sharing（批改得 8 分）。對照 2017／2019／2020 考卷，這類題目考的是系統類型與 OS 架構名詞的定義。</p>`,a:`<p>這組名詞的標準定義（與 2020 期中考填空幾乎相同）：</p>
+<ul><li><b>clustered</b>：兩個以上獨立系統／節點連在一起，提供 high availability 或高效能計算。</li><li><b>time-sharing</b>：CPU 快速在多個 job 間切換，讓使用者覺得同時執行。</li><li><b>multiprocessor</b>：兩顆以上處理器共用 bus，有時共用 clock、memory、周邊。</li><li><b>NUMA</b>：CPU 存取某些記憶體比其他部分快。</li><li><b>bootstrap program</b>：開機時初始化系統、載入 kernel、開始執行 OS 的程式。</li><li><b>monolithic</b>：OS 所有功能在同一層、程序可互相呼叫。</li><li><b>layered</b>：OS 分層，上層只能呼叫下層。</li></ul>`});
+add({s:"e2024m",sec:"II. 問答",n:1,t:"essay",ch:"c1",tp:["multiprog"],pts:"—",q:`${recon}<p>Draw the diagram and discuss how the OS increases CPU utilization in a multiprogramming system.（作答畫了 CPU、記憶體中的 process 1–6 與 job pool）</p>`,a:A_MULTIPROG});
+add({s:"e2024m",sec:"II. 問答",n:2,t:"essay",ch:"c1",tp:["dual"],pts:"—",q:`${recon}<p>Dual-mode operation：以 system call 為例畫圖說明 user mode 與 kernel mode 的切換（作答畫了 system call → trap, mode bit = 0 → 執行 → return, mode bit = 1）。</p>`,a:A_DUAL});
+add({s:"e2024m",sec:"II. 問答",n:3,t:"essay",ch:"c1",tp:[],pts:"—",q:`${recon}<p>第 3 題作答卷空白（未作答），題目內容無法從答案卷判斷。依同系列考卷，這個位置常見的是 trap / system call / interrupt 的比較，或 kernel 架構題。</p>`,a:`<p>題目不明，建議把本頁「Interrupt / Trap / System call / Dual-mode」與「Kernel 架構」兩個考點都準備好。</p>`});
+add({s:"e2024m",sec:"II. 問答",n:4,t:"essay",ch:"c1",tp:["dual"],pts:"—",q:`${recon}<p>Trap / exception 的處理流程，以 5/0（除以零）為例畫圖說明。</p>`,a:`${C(`
+ process 執行 5/0
+        │  CPU 偵測錯誤，產生 trap（exception）
+        ▼
+ 切到 kernel mode，查 interrupt vector 找到 exception handler
+        │
+        ▼
+ OS 執行 handler：通常終止該 process、回報錯誤（或產生 core dump）
+        │
+        ▼
+ scheduler 選下一個 process，切回 user mode 繼續執行`)}<p>重點：trap 由軟體同步產生，進入 kernel 後由 OS 決定處理方式，錯誤只影響該程式，不會讓整個系統當機。</p>`});
+add({s:"e2024m",sec:"II. 問答",n:5,t:"essay",ch:"c2",tp:["kstruct"],pts:"—",q:`${recon}<p>畫出 microkernel、monolithic、loadable kernel modules 三種 OS 架構，並說明各自優缺點。</p>`,a:`${A_MICRO}${A_LKM}${A_KTABLE}`});
+add({s:"e2024m",sec:"II. 問答",n:6,t:"essay",ch:"c3",tp:["ipc"],pts:"—",q:`${recon}<p>畫出 message passing 與 shared memory 兩種 IPC 模型，說明優缺點。</p>`,a:A_IPC});
+add({s:"e2024m",sec:"II. 問答",n:7,t:"essay",ch:"c4",tp:["procmem"],pts:"—",q:`${recon}<p>畫出 process 與 thread（single-threaded vs. multithreaded）的示意圖，說明兩者差異。</p>`,a:A_THREADS});
+add({s:"e2024m",sec:"II. 問答",n:8,t:"essay",ch:"c4",tp:["tmodel"],pts:"—",q:`${recon}<p>畫圖說明 one-to-one multithreading model，並討論在 multiprocessor 與 single-processor 系統上的效能差異。</p>`,a:A_ONE2ONE+`<p>在 multiprocessor 上，每個 kernel thread 可被排到不同 CPU 平行執行，所以比 single-processor 快。</p>`});
+
+/* ===== 期中考答案卷 B（112 級） ===== */
+add({s:"e2025m",sec:"I. 選擇",n:"1–6",t:"mc",ch:"c4",tp:["tmodel"],pts:"—",q:`${recon}<p>第一大題 6 題選擇（可複選），作答為：1. abcd　2. d　3. d　4. b（改 f）　5. 未答　6. d；得 5 分。原題目未保留，依同系列考卷推測是 threads 與排程時機類題目（同 2016 期中考 Selection）。</p>`,a:`<p>請對照 2016 期中考 Selection 1–5 與 2023 小考 Selection 2–3 練習，這是這位老師固定的選擇題題型：</p><ul><li>不共享的程式狀態：register、stack。</li><li>可平行的模型：one-to-one、many-to-many、two-level。</li><li>blocking 整個 process：many-to-one。</li><li>nonpreemptive 排程時機：running→waiting、terminate。</li></ul>`});
+add({s:"e2025m",sec:"II. 填空",n:"1–8",t:"fill",ch:"c2",tp:["virt","boot","systype","shell","procmem"],pts:"—",q:`${recon}<p>第二大題 8 格填空，作答為：1. module（錯）　2. VirtualBox　3. bootstrap　4. clustered　5. symmetric multiprocessing　6. shell　7. context switch　8. B, A, D, C, D（部分錯）；得 12 分。</p>`,a:`<ul><li>VirtualBox：使用的虛擬化軟體。</li><li>bootstrap program：開機初始化並載入 kernel。</li><li>clustered：多個節點組成，提供高可用性。</li><li>symmetric multiprocessing：每顆處理器都執行 OS 所有工作。</li><li>shell：命令直譯器。</li><li>context switch：存舊 process 狀態、載入新 process 狀態。</li><li>第 1 格若描述「動態載入到 kernel 的元件」應答 <b>loadable kernel modules</b>；第 8 格題目不明。</li></ul>`});
+add({s:"e2025m",sec:"III. 問答",n:1,t:"essay",ch:"c1",tp:["dual"],pts:"—",q:`${recon}<p>What is dual-mode operation? Using trap, system call, and timer interrupt as examples to discuss why modern OS take advantage of hardware-supported dual-mode operation.（作答得 13 分）</p>`,a:A_DUAL});
+add({s:"e2025m",sec:"III. 問答",n:2,t:"essay",ch:"c2",tp:["kstruct"],pts:"—",q:`${recon}<p>(a) Describe the microkernel approach, the monolithic structure, and the loadable kernel module approach.<br>(b) Compare their strengths and weaknesses（作答以 extensibility 比較）。</p>`,a:`${A_MICRO}${A_LKM}${A_KTABLE}<p class="note">批改重點：microkernel 是把<b>非必要</b>功能移到 user mode（不是把常用功能放 kernel 來節省時間）；monolithic 出錯影響的是整個 kernel / 系統，不只「整個 process」。</p>`});
+add({s:"e2025m",sec:"III. 問答",n:3,t:"essay",ch:"c3",tp:["ipc"],pts:"—",q:`${recon}<p>Take the producer-consumer problem as an example to discuss the strengths and weaknesses of shared memory and message passing. Draw the diagram for each model.（作答得 8 分）</p>`,a:A_IPC+`<p class="note">批改重點：shared memory 的缺點是「要自己處理同步，否則資料被覆寫」，不是「容易被修改」。</p>`});
+add({s:"e2025m",sec:"III. 問答",n:4,t:"essay",ch:"c4",tp:["tmodel"],pts:"—",q:`${recon}<p>What is the one-to-one multithreading model? Draw the diagram and discuss its strengths and weaknesses.（作答得 5 分）</p>`,a:A_ONE2ONE});
+
+/* ===== 2025 學習單 ===== */
+const reflect=`<p class="note">每張學習單最後還有「課程反思」：今天最重要的重點是＿＿、我還需要多花時間了解的是＿＿（自由作答，不列入題數）。</p>`;
+add({s:"ws",sec:"2025/09/11",n:1,t:"essay",ch:"c1",tp:["boot","dual"],pts:"80%",q:`When does an OS run? (20%) Please draw a diagram for each situation. For each case, indicate which component(s) will be used and which should reside in the OS. (60%)<br>本週情況：(1) system booting　(2) interrupt occurs${reflect}`,a:`<p><b>(1) System booting</b>：開機 → CPU 執行 ROM 中的 <b>bootstrap program</b> → 透過 disk controller 把 OS kernel 從磁碟載入 RAM → kernel 初始化後啟動第一個程式（GUI / shell）。用到：CPU、ROM、disk controller、RAM；常駐 OS：kernel 本體。</p>
+<p><b>(2) Interrupt occurs</b>：device controller（disk、USB、graphics adapter）完成工作送 interrupt 給 CPU → CPU 暫停目前程式、存狀態 → 查 <b>interrupt vector</b> 找到對應 ISR → 執行 device driver 的 ISR → 回到被中斷的程式。常駐 OS：interrupt vector、ISRs、device drivers。</p>
+${C(`
+ CPU ◄── interrupt ── device controller（disk / USB / graphics）
+  │
+  ▼ 查 interrupt vector（在 OS 的記憶體區）
+ [ ROM | OS: interrupt vector, ISRs, device drivers | GUI shell | App | RAM ]
+  │
+  ▼ 執行 ISR → 回到原程式`)}`});
+add({s:"ws",sec:"2025/09/18",n:1,t:"essay",ch:"c1",tp:["dual"],pts:"80%",q:`When does an OS run? (20%) Please describe and draw a diagram for each situation. For each case, indicate which component(s) will be used and which should reside in the OS. (60%)<br>本週情況：(3) exception occurs　(4) timer interrupt processing　(5) system call occurs${reflect}`,a:`<p><b>(3) Exception</b>：程式執行到錯誤（如 A = 5/0）→ CPU 產生 trap → 查 interrupt vector → 執行 OS 的 <b>exception handler</b> → 通常終止該程式。常駐 OS：interrupt vector、exception handlers。</p>
+<p><b>(4) Timer interrupt</b>：App #1 執行中 → timer 到時發出 interrupt → CPU 進 kernel 查 interrupt vector → 執行 <b>timer handler</b>（呼叫 scheduler）→ 若時間片用完就 context switch 給 App #2。常駐 OS：interrupt vector、timer handler、scheduler。</p>
+<p><b>(5) System call</b>：App 呼叫 system call → trap 進 kernel mode → 查 interrupt vector 找到 <b>system call handler</b> → 依 system call 編號呼叫 <b>system call service routine</b> → 完成後回到 user mode，App 繼續。常駐 OS：interrupt vector、system call handler、service routines。</p>`});
+add({s:"ws",sec:"2025/09/25",n:1,t:"essay",ch:"c2",tp:["kstruct"],pts:"80%",q:`Draw structure diagrams for monolithic kernel, microkernel, layered approach, and loadable kernel modules in operating-system design.${reflect}`,a:`${C(`
+ Monolithic                          Layered
+ [App] [App] … [App]   user mode     [App] … [App]          user mode
+ ───────────────────────────────     ───────────────────────────────
+ [   System services          ]      [ System services     ] layer N
+ [ OS procedures 互相呼叫 ⇄⇄⇄  ]      [ File system         ]
+ [   Hardware                 ]      [ Memory & I/O mgmt   ]
+                                     [ Processor scheduling]
+                                     [ Hardware            ] layer 0`)}${A_MICRO}${A_LKM}${A_KTABLE}`});
+add({s:"ws",sec:"2025/10/02",n:1,t:"essay",ch:"c3",tp:["procmem"],pts:"60%",q:`Draw the diagram for process concept.${reflect}`,a:`<p>Program（被動，存在磁碟上的執行檔：header、text section、data section）經 compile &amp; link 成 executable image，<b>載入記憶體</b>開始執行後才成為 process（主動）。</p>${A_MEMLAYOUT}`});
+add({s:"ws",sec:"2025/10/02",n:2,t:"essay",ch:"c3",tp:["procmem"],pts:"20%",q:`Draw the diagram for context switch.`,a:`${C(`
+ OS 記憶體中：PCB1 (pc, sp, …)  PCB2 (pc, sp, …)  PCB3 (pc, sp, …)
+ CPU registers：pc, sp, base, limit …
+
+ ① 從 PCB1 load context → ② 執行 process 1
+ ③ 要切換（如時間片用完）→ 把 CPU 狀態 save 到 PCB1
+ ④ 從 PCB2 load context → ⑤ 執行 process 2
+ ⑥ 切換時 save 回 PCB2 → ⑦ load PCB3 → ⑧ 執行 process 3`)}`});
+add({s:"ws",sec:"2025/10/09",n:1,t:"calc",ch:"c3",tp:["forkout"],pts:"40%",q:`What is the execution result for the following C program:${C(String.raw`
+#include <stdio.h>
+#include <unistd.h>
+void main() {
+    int ret=0;
+    int num=1;
+
+    num ++;
+    ret = fork();
+    num ++;
+    if (ret == 0) {
+        num ++;
+        printf("(a) %d ", num);
+    } else {
+        num ++;
+        wait(NULL);
+        printf("(b) %d ", num);
+    }
+    num ++;
+    printf("(c) %d ", num);
+}`)}`,a:`<p class="k">(a) 4　(c) 5　(b) 4　(c) 5</p><p>num++ → 2，fork 後父子各自 ++ → 3。Child：++ → 4 印 (a) 4，再 ++ → 5 印 (c) 5。Parent：++ → 4，wait 等 child 結束後印 (b) 4，++ → 5 印 (c) 5。</p>`});
+add({s:"ws",sec:"2025/10/09",n:2,t:"essay",ch:"c4",tp:["procmem"],pts:"40%",q:`Draw the diagrams of single-threaded and multithreaded processes.${reflect}`,a:A_THREADS});
+add({s:"ws",sec:"2025/10/26",n:1,t:"calc",ch:"c5",tp:["prisched"],pts:"80%",q:`A system uses <b>preemptive priority-based</b> scheduling algorithm. The table below shows four processes that need to be scheduled. Assume low numbers represent high priority. The length of the CPU-burst time is given in milliseconds. Please draw the Gantt chart. Show the waiting time for each process and the average waiting time.<br>(a) For processes with the same priority, they are scheduled in FCFS order. (35%)<br>(b) For processes with the same priority, they are scheduled in round-robin order. (quantum=2) (45%)
+${T(["Process","Arrival Time","CPU Burst","Priority"],[["P1",5,3,1],["P2",2,3,2],["P3",4,2,1],["P4",0,7,2]])}${reflect}`,a:`<p class="k">(a) 同優先權 FCFS</p>
+${G([[0,4,"P4"],[4,6,"P3"],[6,9,"P1"],[9,12,"P4"],[12,15,"P2"]])}
+${T(["Process","Waiting"],[["P1","9 − 5 − 3 = 1"],["P2","15 − 2 − 3 = 10"],["P3","6 − 4 − 2 = 0"],["P4","12 − 0 − 7 = 5"]])}<p>平均 = 16 / 4 = <b>4 ms</b>（P2 在 t=2 到達但與 P4 同優先權，FCFS 不搶）</p>
+<p class="k">(b) 同優先權 RR，q = 2</p>
+${G([[0,2,"P4"],[2,4,"P2"],[4,6,"P3"],[6,9,"P1"],[9,11,"P4"],[11,12,"P2"],[12,15,"P4"]])}
+${T(["Process","Waiting"],[["P1","9 − 5 − 3 = 1"],["P2","12 − 2 − 3 = 7"],["P3","6 − 4 − 2 = 0"],["P4","15 − 0 − 7 = 8"]])}<p>平均 = 16 / 4 = <b>4 ms</b></p>`});
+add({s:"ws",sec:"2025/11/13",n:1,t:"calc",ch:"c8",tp:["deadlock"],pts:"80%",q:`Suppose a system contains four resources and five threads. Resource type A has 7 instances, B has 8 instances, C has 12 instances, and D has 9 instances. Consider the following snapshot of a system:
+${T(["Thread","Allocation A B C D","Max A B C D"],[["T1","2 0 2 0","2 0 2 1"],["T2","2 3 1 1","5 5 3 3"],["T3","2 1 1 1","2 4 3 2"],["T4","0 1 3 2","7 8 4 6"],["T5","0 1 5 3","2 4 7 7"]])}
+(a) Is the system in a safe state? Why or why not? (20%)<br>(b) If a request from thread T3 arrives for (0,1,0,1), can this request be granted immediately? Explain your answer. (30%)<br>(c) If a request from thread T2 arrives for (0,2,0,1) can this request be granted immediately? Explain your answer. (30%)${reflect}`,a:`<p>Allocation 合計 (6, 6, 12, 7) → <b>Available = (1, 2, 0, 2)</b></p>
+${T(["Thread","Need"],[["T1","0 0 0 1"],["T2","3 2 2 2"],["T3","0 3 2 1"],["T4","7 7 1 4"],["T5","2 3 2 4"]])}
+<p><span class="k">(a) Safe。</span>T1 → Avail 3222；T3 (0321) → 5333；T2 (3222) → 7644；T5 (2324) → 7797；T4 (7714) → 7 9 12 9。安全序列 &lt;T1, T3, T2, T5, T4&gt;。</p>
+<p><span class="k">(b) 不能。</span>(0,1,0,1) ≤ Need(0,3,2,1)、≤ Available，假設配置後 Available = (1,1,0,1)、T3 Need = (0,2,2,0)。T1 可完成 → (3,1,2,1)，之後 T2 需 B=2、T3 需 B=2、T4、T5 都不夠 → unsafe，必須等。</p>
+<p><span class="k">(c) 可以。</span>(0,2,0,1) ≤ Need(3,2,2,2)、≤ Available，配置後 Available = (1,0,0,1)、T2 Need = (3,0,2,1)。T1 → (3,0,2,1)；T2 → (5,5,3,3)；T3 → (7,6,4,4)；T5 → (7,7,9,7)；T4 → 完成 → safe，立即配置。</p>`});
+add({s:"ws",sec:"2025/11/27",n:1,t:"essay",ch:"c9",tp:["paging"],pts:"40%",q:`Draw the address translation diagram of hardware support for relocation and limit register.`,a:`${C(`
+            limit register      relocation register
+                  │                    │
+ CPU ── logical ──► (  <  ) ── yes ──► ( + ) ── physical address ──► memory
+        address       │
+                      no
+                      ▼
+            trap: addressing error`)}<p>每個 logical address 先和 limit 比較，超出就 trap；合法則加上 relocation（base）得到 physical address。MMU 動態做轉換，process 可以被搬到記憶體其他位置（dynamic relocation）。</p>`});
+add({s:"ws",sec:"2025/11/27",n:2,t:"essay",ch:"c9",tp:["paging"],pts:"40%",q:`Draw the address translation diagram of paging hardware.${reflect}`,a:`${C(`
+ CPU ──► logical address [ p | d ]            physical address [ f | d ] ──► physical memory
+                           │   └──────────────────────────┘ ▲      f0000…0000 ┐
+                           ▼                                 │      …          │ frame f
+                      page table                             │      f1111…1111 ┘
+                      p ──► [ f ] ───────────────────────────┘`)}<p>Logical address 拆成 page number p 與 offset d；p 作為 page table 索引取得 frame number f；physical address = f 串接 d。</p>`});
+add({s:"ws",sec:"2025/12/11",n:1,t:"calc",ch:"c10",tp:["pagerep"],pts:"9%",q:`Consider the following page reference string:<br><code>7 9 0 1 1 2 9 0 3 0 4 2 9 0 2</code><br>How many page faults would occur for each of the following page replacement algorithms with four page frames? All page frames are initially empty.<br>(a) FIFO　(b) LRU　(c) optimal page replacement algorithm${reflect}`,a:`<p class="k">(a) FIFO = 10　(b) LRU = 9　(c) OPT = 7</p>
+<p><b>FIFO</b>：7,9,0,1 → 4；2 換 7；3 換 9；4 換 0；9 換 1；0 換 2；2 換 3 → 共 10。</p>
+<p><b>LRU</b>：7,9,0,1 → 4；2 換 7；3 換 1；4 換 9；9 換 2；2 換 3 → 共 9。</p>
+<p><b>OPT</b>：7,9,0,1 → 4；2 換 7；3 換 1；4 換 3 → 共 7。</p>`});
+
+/* ===== 作業 ===== */
+add({s:"hw",sec:"HW3（課本習題）",n:"3.1",t:"calc",ch:"c3",tp:["forkout"],pts:"—",q:`Using the program shown in Figure 3.30, explain what the output will be at LINE A.${C(String.raw`
+#include <sys/types.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int value = 5;
+
+int main()
+{
+    pid_t pid;
+
+    pid = fork();
+
+    if (pid == 0) { /* child process */
+        value += 15;
+        return 0;
+    }
+    else if (pid > 0) { /* parent process */
+        wait(NULL);
+        printf("PARENT: value = %d", value); /* LINE A */
+        return 0;
+    }
+}`)}`,a:`<p class="k">PARENT: value = 5</p><p>fork 後 child 有自己的一份 value，加 15 只改到 child 的副本（20），parent 的 value 仍是 5。</p>`});
+add({s:"hw",sec:"HW3（課本習題）",n:"3.2",t:"calc",ch:"c3",tp:["forkout"],pts:"—",q:`Including the initial parent process, how many processes are created by the program shown in Figure 3.31?${C(`
+#include <stdio.h>
+#include <unistd.h>
+
+int main()
+{
+    /* fork a child process */
+    fork();
+
+    /* fork another child process */
+    fork();
+
+    /* and fork another */
+    fork();
+
+    return 0;
+}`)}`,a:`<p class="k">8 個</p><p>每次 fork 都讓 process 數變兩倍：1 → 2 → 4 → 8（2<sup>3</sup>）。</p>`});
+add({s:"hw",sec:"HW3（課本習題）",n:"3.13",t:"calc",ch:"c3",tp:["forkout"],pts:"—",q:`Using the program in Figure 3.34, identify the values of pid at lines A, B, C, and D. (Assume that the actual pids of the parent and child are 2600 and 2603, respectively.)${C(String.raw`
+#include <sys/types.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main()
+{
+pid_t pid, pid1;
+
+    /* fork a child process */
+    pid = fork();
+
+    if (pid < 0) { /* error occurred */
+        fprintf(stderr, "Fork Failed");
+        return 1;
+    }
+    else if (pid == 0) { /* child process */
+        pid1 = getpid();
+        printf("child: pid = %d",pid); /* A */
+        printf("child: pid1 = %d",pid1); /* B */
+    }
+    else { /* parent process */
+        pid1 = getpid();
+        printf("parent: pid = %d",pid); /* C */
+        printf("parent: pid1 = %d",pid1); /* D */
+        wait(NULL);
+    }
+
+    return 0;
+}`)}`,a:`<p class="k">A = 0　B = 2603　C = 2603　D = 2600</p><p>fork() 在 child 回傳 0、在 parent 回傳 child 的 pid；getpid() 回傳自己的 pid。</p>`});
+add({s:"hw",sec:"程式作業 prog.4.c",n:1,t:"lab",ch:"c3",tp:["shell","forkout"],pts:"—",q:`寫一個簡化版 shell：顯示提示字元 <code>bobo:$</code>，讀入使用者指令（最多 2 個參數），用 <code>fork()</code> 產生子行程、子行程以 <code>execvp()</code> 執行指令，父行程等待子行程結束並印出 <code>child complete</code>；輸入錯誤指令時子行程印 <code>Error command! Child exit!</code>；輸入 <code>exit</code> 結束並印 <code>Simplified shell terminated !</code>。在 Linux VM 中以 gcc 編譯，測試 ls、pwd、date 與錯誤指令。`,a:`${C(String.raw`
+int main() {
+    char input[100];
+    char *args[5];
+    pid_t pid;
+    int status;
+
+    printf("A simplified shell ... Enter exit to terminate!\n");
+    while (1) {
+        printf("bobo:$ ");
+        fflush(stdout);
+        if (fgets(input, sizeof(input), stdin) == NULL) continue;
+        input[strcspn(input, "\n")] = '\0';          // 去掉換行
+
+        if (strcmp(input, "exit") == 0) {
+            printf("Simplified shell terminated !\n");
+            break;
+        }
+        int i = 0;                                    // 切成指令 + 參數
+        char *token = strtok(input, " ");
+        while (token != NULL && i < 4) {
+            args[i++] = token;
+            token = strtok(NULL, " ");
+        }
+        args[i] = NULL;                               // execvp 最後要是 NULL
+
+        pid = fork();
+        if (pid < 0) {
+            perror("fork error");
+        } else if (pid == 0) {                        // 子行程執行指令
+            if (execvp(args[0], args) == -1) {
+                printf("Error command! Child exit!\n");
+                exit(1);
+            }
+        } else {                                      // 父行程等待
+            waitpid(pid, &status, 0);
+            printf("child complete\n");
+        }
+    }
+    return 0;
+}`)}<p>重點：execvp 成功就不會回來（子行程被新程式取代），所以失敗才會執行後面的錯誤訊息；父行程必須 wait，否則會產生 zombie 且提示字元會和輸出交錯。</p>`});
+add({s:"hw",sec:"排程模擬器作業",n:"5.4",t:"calc",ch:"c5",tp:["schedc"],pts:"—",q:`Consider the following set of processes, with the length of the CPU burst time given in milliseconds. The processes are assumed to have arrived in the order P1, P2, P3, P4, P5, all at time 0.
+${T(["Process","Burst Time","Priority"],[["P1",2,2],["P2",1,1],["P3",8,4],["P4",4,2],["P5",5,3]])}
+a. Draw four Gantt charts that illustrate the execution of these processes using the following scheduling algorithms: FCFS, SJF, nonpreemptive priority (a larger priority number implies a higher priority), and RR (quantum = 2).<br>b. What is the turnaround time of each process for each of the scheduling algorithms in part a?<br>c. What is the waiting time of each process for each of these scheduling algorithms?<br>d. Which of the algorithms results in the minimum average waiting time (over all processes)?<p class="note">作業要求用排程模擬器（ossim）做出結果截圖。</p>`,a:`${G([[0,2,"P1"],[2,3,"P2"],[3,11,"P3"],[11,15,"P4"],[15,20,"P5"]],"FCFS")}
+${G([[0,1,"P2"],[1,3,"P1"],[3,7,"P4"],[7,12,"P5"],[12,20,"P3"]],"SJF")}
+${G([[0,8,"P3"],[8,13,"P5"],[13,15,"P1"],[15,19,"P4"],[19,20,"P2"]],"Nonpreemptive priority（數字大優先）")}
+${G([[0,2,"P1"],[2,3,"P2"],[3,5,"P3"],[5,7,"P4"],[7,9,"P5"],[9,11,"P3"],[11,13,"P4"],[13,15,"P5"],[15,17,"P3"],[17,18,"P5"],[18,20,"P3"]],"RR (q = 2)")}
+${T(["","P1","P2","P3","P4","P5","平均"],[
+["Turnaround FCFS",2,3,11,15,20,"10.2"],["Turnaround SJF",3,1,20,7,12,"8.6"],["Turnaround Priority",15,20,8,19,13,"15"],["Turnaround RR",2,3,20,13,18,"11.2"],
+["Waiting FCFS",0,2,3,11,15,"6.2"],["Waiting SJF",1,0,12,3,7,"4.6"],["Waiting Priority",13,19,0,15,8,"11"],["Waiting RR",0,2,12,9,13,"7.2"]])}
+<p class="k">d. SJF 平均等待時間最短（4.6 ms）。</p>`});
+add({s:"hw",sec:"排程模擬器作業",n:2,t:"calc",ch:"c5",tp:["rtsched"],pts:"—",q:`Consider two processes, P1 and P2, where p1 = 50, t1 = 25, p2 = 75, and t2 = 30.<br>a. Can these two processes be scheduled using rate-monotonic scheduling? Illustrate your answer using a Gantt chart.<br>b. Illustrate the scheduling of these two processes using earliest-deadline-first (EDF) scheduling.<p class="note">作業以即時排程模擬器操作（T1 = 25/50、T2 = 30/75）。</p>`,a:`<p>CPU 使用率 = 25/50 + 30/75 = 0.9，超過兩個 process 的 RM 上限 2(2<sup>1/2</sup> − 1) ≈ 0.83（模擬器顯示 Exceed the upper limit）。</p>
+${G([[0,25,"P1"],[25,50,"P2"],[50,75,"P1"],[75,100,"P2"],[100,125,"P1"],[125,130,"P2"],[130,150,"idle"]],"a. Rate-monotonic")}
+<p><span class="k">不行。</span>P1 週期短優先權高；P2 在 25–50 只做了 25，t=50 被 P1 搶走，到 deadline 75 時還差 5 → 錯過 deadline。</p>
+${G([[0,25,"P1"],[25,55,"P2"],[55,80,"P1"],[80,110,"P2"],[110,135,"P1"],[135,150,"idle"]],"b. EDF")}
+<p><span class="k">可以。</span>t=50 P1 新 deadline 100，P2 deadline 75 較早，P2 繼續做到 55 完成；之後每個工作都在 deadline 前完成。</p>`});
+add({s:"hw",sec:"Banker's Algorithm 作業",n:1,t:"calc",ch:"c8",tp:["deadlock"],pts:"—",q:`Consider the following snapshot of a system:
+${T(["Thread","Allocation A B C D","Max A B C D"],[["T0","3 1 4 1","6 4 7 3"],["T1","2 1 0 2","4 2 3 2"],["T2","2 4 1 3","2 5 3 3"],["T3","4 1 1 0","6 3 3 2"],["T4","2 2 2 1","5 6 7 5"]])}
+Available = (2, 2, 2, 4). Using the banker's algorithm, answer:<br>a. Illustrate that the system is in a safe state by demonstrating an order in which the threads may complete.<br>b. If a request from thread T4 arrives for (2, 2, 2, 4), can the request be granted immediately?<br>c. If a request from thread T2 arrives for (0, 1, 1, 0), can the request be granted immediately?<p class="note">課本原題還有 d. T3 要求 (2, 2, 1, 2)，一併附在解答。</p>`,a:`${T(["Thread","Need"],[["T0","3 3 3 2"],["T1","2 1 3 0"],["T2","0 1 2 0"],["T3","2 2 2 2"],["T4","3 4 5 4"]])}
+<p><span class="k">a. Safe。</span>T2 → Avail (4,6,3,7)；T3 → (8,7,4,7)；T0 → (11,8,8,8)；T1 → (13,9,8,10)；T4 → (15,11,10,11)。順序 &lt;T2, T3, T0, T1, T4&gt;。</p>
+<p><span class="k">b. 不能。</span>(2,2,2,4) ≤ Need(3,4,5,4)、≤ Available，但配置後 Available = (0,0,0,0)，沒有任何 thread 的 Need 能被滿足 → unsafe。</p>
+<p><span class="k">c. 可以。</span>配置後 Available = (2,1,1,4)、T2 Need = (0,0,1,0)。T2 先完成 → (4,6,3,7)，之後同 a 的順序都能完成 → safe。</p>
+<p><span class="k">d. 可以。</span>配置後 Available = (0,0,1,2)、T3 Need = (0,0,1,0)。T3 完成 → (6,3,3,4)；T0 → (9,4,7,5)；T1 → (11,5,7,7)；T2 → (13,9,8,10)；T4 → 完成 → safe。</p>`});
+add({s:"hw",sec:"虛擬機實作",n:1,t:"lab",ch:"c1",tp:["virt"],pts:"—",q:`用 VirtualBox 安裝 Linux 虛擬機，交作業截圖：① OS 版本、② 帳號與主機名稱（如 <code>s112213035@s112213035-VirtualBox</code>）、③ 網路有通、④ 在 VM 中自己寫的程式（編譯與執行結果），並附參考文獻。`,a:`<ul><li>版本：<code>lsb_release -a</code> 或 <code>cat /etc/os-release</code>、<code>uname -r</code>。</li><li>帳號與主機名稱：<code>whoami</code>、<code>hostname</code>（提示字元也會顯示 user@host）。</li><li>網路：<code>ping -c 4 8.8.8.8</code> 或 <code>ping www.google.com</code>。</li><li>程式：<code>vi hello.c</code> → <code>gcc hello.c</code> → <code>./a.out</code>。</li></ul><p>觀念：VirtualBox 是 type 2 hypervisor，跑在 host OS 上，把一台實體機的 CPU、記憶體、磁碟、網卡抽象成多個獨立執行環境。</p>`});
+add({s:"hw",sec:"虛擬機實作",n:2,t:"lab",ch:"c1",tp:["virt"],pts:"—",q:`用 KVM 建立虛擬機並 demo：截圖 KVM / VM 的版本、VM 執行畫面（KVM DEMO），以及在 VM 中執行的程式。`,a:`<ul><li>確認 CPU 支援虛擬化：<code>egrep -c '(vmx|svm)' /proc/cpuinfo</code>（大於 0 才行）。</li><li>安裝：<code>sudo apt install qemu-kvm libvirt-daemon-system virt-manager</code>，用 virt-manager 或 <code>virt-install</code> 建 VM。</li><li>版本：<code>kvm --version</code> / <code>virsh version</code>。</li></ul><p>觀念：KVM 是 Linux kernel 內的模組（loadable kernel module），讓 Linux 本身成為 hypervisor，靠 CPU 的硬體虛擬化（Intel VT-x / AMD-V）執行 guest。和 VirtualBox 相比更接近 type 1。</p>`});
+
+/* ---------- state ---------- */
+Q.forEach((q,i)=>{q.id=`${q.s}-${String(q.sec).replace(/\W+/g,"")}-${q.n}-${i}`;q.text=(q.q+" "+q.a).replace(/<[^>]+>/g," ").toLowerCase();});
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let known=new Set(store.get("os-known",[]));
+const F={src:new Set(),ch:new Set(),type:new Set(),topic:new Set(),q:"",unknown:false};
+const srcOrder=Object.keys(SRC);
+
+/* ---------- stats ---------- */
+function countBy(fn){const m={};Q.forEach(q=>{[].concat(fn(q)).forEach(k=>{if(k!=null)m[k]=(m[k]||0)+1})});return m;}
+function bars(map,labels,order,kind){
+  const max=Math.max(...Object.values(map));
+  return `<div class="bars">${order.filter(k=>map[k]).map(k=>`<button class="bar" data-kind="${kind}" data-key="${k}" title="在題庫中篩選"><span class="lab">${labels[k]}</span><span class="track"><span class="fill" style="width:${map[k]/max*100}%"></span></span><span class="n">${map[k]}</span></button>`).join("")}</div>`;
+}
+function renderStats(){
+  const total=Q.length;
+  document.getElementById("totalBox").textContent=total;
+  const bySrc=countBy(q=>q.s), byCh=countBy(q=>q.ch), byType=countBy(q=>q.t), byTopic=countBy(q=>q.tp);
+  const exams=["e2016m","e2017f","e2017m","e2019m","e2020m","hmS","q2023","e2024m","e2025m"];
+  const examQ=Q.filter(q=>exams.includes(q.s)).length;
+  const recon=Q.filter(q=>q.s==="e2024m"||q.s==="e2025m").length;
+  const topicSrc={};Q.forEach(q=>q.tp.forEach(t=>{(topicSrc[t]=topicSrc[t]||new Set()).add(q.s)}));
+  const topicRows=Object.keys(byTopic).sort((a,b)=>topicSrc[b].size-topicSrc[a].size||byTopic[b]-byTopic[a]);
+  document.getElementById("view-stats").innerHTML=`
+  <div class="eyebrow">統計總覽</div>
+  <div class="kpis">
+    <div class="kpi"><div class="v">${total}</div><div class="l">收錄題目（含小題組）</div></div>
+    <div class="kpi"><div class="v">${Object.keys(SRC).length}</div><div class="l">來源份數（考卷、小考、學習單、作業）</div></div>
+    <div class="kpi"><div class="v">${examQ}</div><div class="l">考試題（期中、期末、小考）</div></div>
+    <div class="kpi"><div class="v">${(byType.calc||0)}</div><div class="l">計算 / 程式追蹤題</div></div>
+    <div class="kpi"><div class="v">${recon}</div><div class="l">由答案卷回推的題目</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h3>各來源題數</h3>${bars(bySrc,Object.fromEntries(srcOrder.map(k=>[k,`${SRC[k].label}<br><small style="color:var(--muted)">${SRC[k].date}</small>`])),srcOrder,"src")}</div>
+    <div class="panel"><h3>各章節題數</h3>${bars(byCh,CH,Object.keys(CH),"ch")}<h3 style="margin-top:18px">題型分布</h3>${bars(byType,TYPE,Object.keys(TYPE),"type")}</div>
+  </div>
+  <div class="panel" style="margin-top:22px">
+    <h3>高頻考點</h3>
+    <p class="note" style="margin-top:-6px">依「出現在幾份不同來源」排序。紅字是題數，標籤是出現過的來源；點考點名稱可直接篩選題庫。</p>
+    <div class="tbl-scroll"><table class="freq"><tr><th>考點</th><th style="text-align:right">題數</th><th>出現在</th></tr>
+    ${topicRows.map(t=>`<tr><td><button class="chip" data-kind="topic" data-key="${t}" style="border-radius:4px">${TOPIC[t]}</button></td><td class="n">${byTopic[t]}</td><td><div class="yrs">${srcOrder.filter(s=>topicSrc[t].has(s)).map(s=>`<span class="yr">${SRC[s].label}</span>`).join("")}</div></td></tr>`).join("")}
+    </table></div>
+  </div>
+  <div class="grid2" style="margin-top:22px">
+    <div class="panel"><h3>讀過的檔案</h3><div class="files">
+      <div><b>期中考／</b><span>11 張照片：2017、2019 題目卷，另有兩份只有答案卷（已回推題目）</span></div>
+      <div><b>期末／</b><span>OS期中期末.pdf 10 頁：2016 期中、2017 期中、2017 期末</span></div>
+      <div><b>小考／</b><span>4 張照片：2023/11/30 小考（兩份同卷）</span></div>
+      <div><b>學習單／</b><span>5 頁 PDF + 4 張照片：2025 學期 9 張學習單</span></div>
+      <div><b>作業／</b><span>HW3、prog.4.c、模擬器、Banker 手寫、VirtualBox、KVM；zip 內是兩支 mp4 影片，沒有題目</span></div>
+      <div><b>PPT(筆記)／</b><span>Ch1–6、8–10 講義，是上課投影片不是題目，用來對應章節</span></div>
+      <div><b>HackMD</b><span>2017、2019、2020 考古與學姊解答，另有一張排程考卷</span></div>
+    </div></div>
+    <div class="panel"><h3>重複出現最多的題目</h3><div class="files">
+      <div><b>Dual-mode</b><span>2016、2017、2019、2020 期中，兩份答案卷都有，幾乎每年必考</span></div>
+      <div><b>Kernel 架構比較</b><span>microkernel vs. LKM vs. monolithic，2016 起每年都考，配分常是全卷最高</span></div>
+      <div><b>Producer–consumer + 兩種 IPC</b><span>2016、2017、2019、2020 與兩份答案卷</span></div>
+      <div><b>fork / pthread 輸出</b><span>2016、2017、2019 期中考，學習單與 HW3 也有</span></div>
+      <div><b>Real-time + Normal 排程 Gantt</b><span>2016、2017、HackMD、2023、2025 學習單</span></div>
+      <div><b>EDF / RM</b><span>2017 期中期末、HackMD、2023 小考、作業，數字常常只換一點</span></div>
+    </div></div>
+  </div>`;
+}
+
+/* ---------- bank ---------- */
+function chipRow(id,map,set,kind){
+  document.getElementById(id).innerHTML=Object.keys(map).map(k=>`<button class="chip" data-kind="${kind}" data-key="${k}" aria-pressed="${set.has(k)}">${map[k].label||map[k]}</button>`).join("");
+}
+function renderFilters(){
+  chipRow("f-src",SRC,F.src,"src");chipRow("f-ch",CH,F.ch,"ch");chipRow("f-type",TYPE,F.type,"type");chipRow("f-topic",TOPIC,F.topic,"topic");
+  document.getElementById("f-q").value=F.q;document.getElementById("f-unknown").checked=F.unknown;
+}
+function filtered(){
+  return Q.filter(q=>(!F.src.size||F.src.has(q.s))&&(!F.ch.size||F.ch.has(q.ch))&&(!F.type.size||F.type.has(q.t))&&(!F.topic.size||q.tp.some(t=>F.topic.has(t)))&&(!F.q||F.q.toLowerCase().split(/\s+/).every(w=>q.text.includes(w)))&&(!F.unknown||!known.has(q.id)));
+}
+function card(q,open){
+  const isK=known.has(q.id);
+  return `<article class="q${isK?" known":""}" data-id="${q.id}">
+    <div class="num">${q.n}<small>${q.sec}</small></div>
+    <div class="body">
+      <div class="tags"><span class="tag">${SRC[q.s].label}</span><span class="tag t">${CH[q.ch]}</span><span class="tag t">${TYPE[q.t]}</span>${q.pts&&q.pts!=="—"?`<span class="tag pts">${q.pts}</span>`:""}</div>
+      <div class="qt">${q.q}</div>
+      <details class="ans"${open?" open":""}><summary>解答</summary><div class="ansbody">${q.a}</div></details>
+      <div class="qfoot"><label class="known-t"><input type="checkbox" class="kchk" ${isK?"checked":""}> 我會了</label></div>
+    </div></article>`;
+}
+let openAll=false;
+function renderBank(){
+  const list=filtered();
+  document.getElementById("bankCount").innerHTML=`顯示 <b>${list.length}</b> / ${Q.length} 題　·　已掌握 <b>${Q.filter(q=>known.has(q.id)).length}</b> 題`;
+  if(!list.length){document.getElementById("bankList").innerHTML=`<div class="empty">沒有符合條件的題目，試著清除篩選或換個關鍵字。</div>`;return;}
+  let html="";
+  srcOrder.forEach(s=>{
+    const qs=list.filter(q=>q.s===s); if(!qs.length) return;
+    html+=`<div class="group-h"><h2>${SRC[s].label}</h2><span class="meta">${SRC[s].date}・${SRC[s].kind}・${qs.length} 題</span><span class="meta">來源：${SRC[s].from}</span></div><div class="qlist">${qs.map(q=>card(q,openAll)).join("")}</div>`;
+  });
+  document.getElementById("bankList").innerHTML=html;
+}
+
+/* ---------- practice ---------- */
+let cur=null;
+function nextPractice(){
+  const pool=filtered().filter(q=>!known.has(q.id));
+  document.getElementById("pCount").innerHTML=`可抽題目 <b>${pool.length}</b> 題`;
+  if(!pool.length){document.getElementById("pCard").innerHTML=`<div class="empty">目前篩選範圍內的題目都標記會了。到「題庫」頁取消一些「我會了」，或放寬篩選。</div>`;cur=null;return;}
+  let pick; do{pick=pool[Math.floor(Math.random()*pool.length)]}while(pool.length>1&&cur&&pick.id===cur.id);
+  cur=pick; document.getElementById("pCard").innerHTML=card(cur,false);
+}
+
+/* ---------- events ---------- */
+function setView(v){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===v));
+  ["stats","bank","practice"].forEach(x=>document.getElementById("view-"+x).hidden=x!==v);
+  if(v==="bank")renderBank(); if(v==="practice")nextPractice();
+  store.set("os-view",v); window.scrollTo(0,0);
+}
+document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-view]");if(b)setView(b.dataset.view)});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-kind]"); if(!b) return;
+  const set=F[b.dataset.kind], k=b.dataset.key;
+  if(b.closest("#view-stats")){F.src.clear();F.ch.clear();F.type.clear();F.topic.clear();F.q="";set.add(k);renderFilters();setView("bank");return;}
+  set.has(k)?set.delete(k):set.add(k); b.setAttribute("aria-pressed",set.has(k)); renderBank();
+});
+document.addEventListener("change",e=>{
+  if(e.target.classList.contains("kchk")){
+    const art=e.target.closest(".q"),id=art.dataset.id;
+    e.target.checked?known.add(id):known.delete(id); art.classList.toggle("known",e.target.checked); store.set("os-known",[...known]);
+    const cnt=document.getElementById("bankCount"); if(!document.getElementById("view-bank").hidden) cnt.innerHTML=`顯示 <b>${filtered().length}</b> / ${Q.length} 題　·　已掌握 <b>${Q.filter(q=>known.has(q.id)).length}</b> 題`;
+  }
+});
+document.getElementById("f-q").addEventListener("input",e=>{F.q=e.target.value.trim();renderBank()});
+document.getElementById("f-unknown").addEventListener("change",e=>{F.unknown=e.target.checked;renderBank()});
+document.getElementById("btnOpenAll").onclick=()=>{openAll=true;document.querySelectorAll("#bankList details").forEach(d=>d.open=true)};
+document.getElementById("btnCloseAll").onclick=()=>{openAll=false;document.querySelectorAll("#bankList details").forEach(d=>d.open=false)};
+document.getElementById("btnReset").onclick=()=>{F.src.clear();F.ch.clear();F.type.clear();F.topic.clear();F.q="";F.unknown=false;renderFilters();renderBank()};
+document.getElementById("pNext").onclick=nextPractice;
+document.getElementById("pShow").onclick=()=>{const d=document.querySelector("#pCard details");if(d)d.open=true};
+
+renderStats();renderFilters();
+const startView=(["stats","bank","practice"].includes(location.hash.slice(1))?location.hash.slice(1):null)||store.get("os-view","stats");
+setView(startView);
+</script>
+
+</body>
+</html>
